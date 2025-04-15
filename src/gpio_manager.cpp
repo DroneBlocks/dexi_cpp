@@ -13,14 +13,14 @@ GpioManager::GpioManager() : Node("gpio_manager")
     gpio_state_publisher_ = this->create_publisher<std_msgs::msg::Bool>("gpio_state", 10);
 
     // Create service for setting GPIO state
-    set_gpio_service_ = this->create_service<gpio_manager::srv::SetGpio>(
-        "set_gpio",
+    set_gpio_service_ = this->create_service<dexi_interfaces::srv::GPIOSend>(
+        "gpio_send",
         std::bind(&GpioManager::setGpioCallback, this, std::placeholders::_1, std::placeholders::_2));
 
-    // Create service for reading GPIO state
-    read_gpio_service_ = this->create_service<gpio_manager::srv::ReadGpio>(
-        "read_gpio",
-        std::bind(&GpioManager::readGpioCallback, this, std::placeholders::_1, std::placeholders::_2));
+    // Create service for setting up GPIO
+    setup_gpio_service_ = this->create_service<dexi_interfaces::srv::GPIOSetup>(
+        "gpio_setup",
+        std::bind(&GpioManager::setupGpioCallback, this, std::placeholders::_1, std::placeholders::_2));
 
     RCLCPP_INFO(this->get_logger(), "GPIO Manager node initialized successfully");
 }
@@ -31,7 +31,7 @@ bool GpioManager::initializeGpio()
         // Open the GPIO chip
         chip_ = std::make_unique<gpiod::chip>("gpiochip0");
         
-        // Reserve and configure all GPIO lines
+        // Reserve and configure all GPIO lines as outputs initially
         for (size_t i = 0; i < NUM_PINS; ++i) {
             auto line = chip_->get_line(GPIO_PINS[i]);
             line.request({"gpio_manager", gpiod::line_request::DIRECTION_OUTPUT, 0});
@@ -72,8 +72,8 @@ int GpioManager::getLineIndex(int pin)
 }
 
 void GpioManager::setGpioCallback(
-    const gpio_manager::srv::SetGpio::Request::SharedPtr request,
-    gpio_manager::srv::SetGpio::Response::SharedPtr response)
+    const dexi_interfaces::srv::GPIOSend::Request::SharedPtr request,
+    dexi_interfaces::srv::GPIOSend::Response::SharedPtr response)
 {
     // Validate pin number
     if (!isValidPin(request->pin)) {
@@ -85,11 +85,11 @@ void GpioManager::setGpioCallback(
     try {
         // Get the line index and set the value
         int line_index = getLineIndex(request->pin);
-        gpio_lines_[line_index]->set_value(request->value ? 1 : 0);
+        gpio_lines_[line_index]->set_value(request->state ? 1 : 0);
 
         // Publish state change
         auto msg = std_msgs::msg::Bool();
-        msg.data = request->value;
+        msg.data = request->state;
         gpio_state_publisher_->publish(msg);
 
         response->success = true;
@@ -100,9 +100,9 @@ void GpioManager::setGpioCallback(
     }
 }
 
-void GpioManager::readGpioCallback(
-    const gpio_manager::srv::ReadGpio::Request::SharedPtr request,
-    gpio_manager::srv::ReadGpio::Response::SharedPtr response)
+void GpioManager::setupGpioCallback(
+    const dexi_interfaces::srv::GPIOSetup::Request::SharedPtr request,
+    dexi_interfaces::srv::GPIOSetup::Response::SharedPtr response)
 {
     // Validate pin number
     if (!isValidPin(request->pin)) {
@@ -112,14 +112,32 @@ void GpioManager::readGpioCallback(
     }
 
     try {
-        // Get the line index and read the value
+        // Get the line index
         int line_index = getLineIndex(request->pin);
-        response->value = (gpio_lines_[line_index]->get_value() == 1);
+        
+        // Release the current line
+        gpio_lines_[line_index].reset();
+        
+        // Get a new line with the requested configuration
+        auto line = chip_->get_line(GPIO_PINS[line_index]);
+        if (request->io == "input") {
+            line.request({"gpio_manager", gpiod::line_request::DIRECTION_INPUT, 0});
+        } else if (request->io == "output") {
+            line.request({"gpio_manager", gpiod::line_request::DIRECTION_OUTPUT, 0});
+        } else {
+            response->success = false;
+            response->message = "Invalid IO mode. Must be 'input' or 'output'";
+            return;
+        }
+        
+        // Store the new line
+        gpio_lines_[line_index] = std::make_unique<gpiod::line>(line);
+        
         response->success = true;
-        response->message = "GPIO state read successfully";
+        response->message = "GPIO setup successful";
     } catch (const std::exception& e) {
         response->success = false;
-        response->message = std::string("Failed to read GPIO state: ") + e.what();
+        response->message = std::string("Failed to setup GPIO: ") + e.what();
     }
 }
 

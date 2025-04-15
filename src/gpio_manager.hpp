@@ -9,8 +9,8 @@
 #include <vector>
 
 // Custom service messages
-#include "gpio_manager/srv/set_gpio.hpp"
-#include "gpio_manager/srv/read_gpio.hpp"
+#include "dexi_interfaces/srv/gpio_send.hpp"
+#include "dexi_interfaces/srv/gpio_setup.hpp"
 
 class GpioManager : public rclcpp::Node
 {
@@ -24,8 +24,8 @@ private:
     
     // ROS2 components
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr gpio_state_publisher_;
-    rclcpp::Service<gpio_manager::srv::SetGpio>::SharedPtr set_gpio_service_;
-    rclcpp::Service<gpio_manager::srv::ReadGpio>::SharedPtr read_gpio_service_;
+    rclcpp::Service<dexi_interfaces::srv::GPIOSend>::SharedPtr set_gpio_service_;
+    rclcpp::Service<dexi_interfaces::srv::GPIOSetup>::SharedPtr setup_gpio_service_;
     
     // GPIO interface
     std::unique_ptr<gpiod::chip> chip_;
@@ -33,12 +33,12 @@ private:
     
     // Callbacks
     void setGpioCallback(
-        const gpio_manager::srv::SetGpio::Request::SharedPtr request,
-        gpio_manager::srv::SetGpio::Response::SharedPtr response);
+        const dexi_interfaces::srv::GPIOSend::Request::SharedPtr request,
+        dexi_interfaces::srv::GPIOSend::Response::SharedPtr response);
     
-    void readGpioCallback(
-        const gpio_manager::srv::ReadGpio::Request::SharedPtr request,
-        gpio_manager::srv::ReadGpio::Response::SharedPtr response);
+    void setupGpioCallback(
+        const dexi_interfaces::srv::GPIOSetup::Request::SharedPtr request,
+        dexi_interfaces::srv::GPIOSetup::Response::SharedPtr response);
     
     // Helper functions
     bool initializeGpio();
