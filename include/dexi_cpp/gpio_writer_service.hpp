@@ -15,6 +15,7 @@ class GPIOWriterService : public rclcpp::Node
 {
 public:
     GPIOWriterService();
+    ~GPIOWriterService();
 
 private:
     // GPIO pins configuration

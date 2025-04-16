@@ -63,7 +63,7 @@ bool ServoController::initializePWM()
             channel.enabled = true;
 
             pwm_channels_.push_back(channel);
-            RCLCPP_INFO(get_logger(), "Initialized PWM channel %d for pin %d", i, PWM_PINS[i]);
+            RCLCPP_INFO(get_logger(), "Initialized PWM channel %zu for pin %d", i, PWM_PINS[i]);
         }
         return true;
     } catch (const std::exception& e) {

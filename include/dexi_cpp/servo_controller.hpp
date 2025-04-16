@@ -12,6 +12,7 @@ class ServoController : public rclcpp::Node
 {
 public:
     ServoController();
+    ~ServoController();
 
 private:
     // PWM configuration

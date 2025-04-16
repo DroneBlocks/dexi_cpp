@@ -1,4 +1,4 @@
-#include "gpio_reader.hpp"
+#include "dexi_cpp/gpio_reader.hpp"
 #include <rclcpp/rclcpp.hpp>
 
 GPIOReader::GPIOReader() : Node("gpio_reader")
