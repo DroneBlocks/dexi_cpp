@@ -57,7 +57,20 @@ ament_target_dependencies(
 )
 target_link_libraries(gpio_writer_service ${GPIOD_LIBRARIES} stdc++fs)
 
-install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service
+# Servo Controller
+add_executable(servo_controller src/servo_controller.cpp)
+target_include_directories(servo_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(servo_controller PUBLIC c_std_99 cxx_std_17)
+ament_target_dependencies(
+  servo_controller
+  "rclcpp"
+  "dexi_interfaces"
+)
+target_link_libraries(servo_controller stdc++fs)
+
+install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY

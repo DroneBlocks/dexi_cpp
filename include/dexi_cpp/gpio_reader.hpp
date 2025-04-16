@@ -1,5 +1,5 @@
-#ifndef GPIO_READER_HPP
-#define GPIO_READER_HPP
+#ifndef DEXI_CPP__GPIO_READER_HPP_
+#define DEXI_CPP__GPIO_READER_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <gpiod.hpp>
@@ -36,4 +36,4 @@ private:
     std::string getPinTopicName(int pin);
 };
 
-#endif // GPIO_READER_HPP 
+#endif // DEXI_CPP__GPIO_READER_HPP_ 

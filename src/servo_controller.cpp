@@ -1,4 +1,4 @@
-#include "dexi_cpp/gpio_writer_service.hpp"
+#include "dexi_cpp/servo_controller.hpp"
 #include <functional>
 #include <filesystem>
 #include <fstream>
@@ -7,62 +7,33 @@ using std::placeholders::_1;
 using std::placeholders::_2;
 namespace fs = std::filesystem;
 
-GPIOWriterService::GPIOWriterService()
-: Node("gpio_writer_service")
+ServoController::ServoController()
+: Node("servo_controller")
 {
-    // Initialize GPIO and PWM
-    if (!initializeGpio() || !initializePWM()) {
-        RCLCPP_ERROR(get_logger(), "Failed to initialize GPIO/PWM");
+    // Initialize PWM
+    if (!initializePWM()) {
+        RCLCPP_ERROR(get_logger(), "Failed to initialize PWM");
         return;
     }
 
-    // Create services for each GPIO pin
+    // Create services for each PWM pin
     for (size_t i = 0; i < NUM_PINS; ++i) {
-        int pin = GPIO_PINS[i];
-        
-        // Create GPIO service
-        auto gpio_service = create_service<dexi_interfaces::srv::GPIOSend>(
-            getGPIOServiceName(pin),
-            std::bind(&GPIOWriterService::handleGPIORequest, this, _1, _2)
-        );
-        gpio_services_.push_back(gpio_service);
-        
-        // Create servo service
-        auto servo_service = create_service<dexi_interfaces::srv::ServoControl>(
+        int pin = PWM_PINS[i];
+        auto service = create_service<dexi_interfaces::srv::ServoControl>(
             getServoServiceName(pin),
-            std::bind(&GPIOWriterService::handleServoRequest, this, _1, _2)
+            std::bind(&ServoController::handleServoRequest, this, _1, _2)
         );
-        servo_services_.push_back(servo_service);
-        
-        RCLCPP_INFO(get_logger(), "Created services for pin %d", pin);
+        servo_services_.push_back(service);
+        RCLCPP_INFO(get_logger(), "Created servo service for pin %d", pin);
     }
 }
 
-GPIOWriterService::~GPIOWriterService()
+ServoController::~ServoController()
 {
-    cleanupGpio();
     cleanupPWM();
 }
 
-bool GPIOWriterService::initializeGpio()
-{
-    try {
-        gpio_chip_ = std::make_unique<gpiod::chip>("gpiochip0");
-        
-        // Initialize GPIO lines for potential digital control
-        for (size_t i = 0; i < NUM_PINS; ++i) {
-            auto line = gpio_chip_->get_line(GPIO_PINS[i]);
-            line.request({"dexi_gpio_writer", gpiod::line_request::DIRECTION_OUTPUT, 0});
-            gpio_lines_.push_back(std::make_unique<gpiod::line>(std::move(line)));
-        }
-        return true;
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(get_logger(), "GPIO initialization failed: %s", e.what());
-        return false;
-    }
-}
-
-bool GPIOWriterService::initializePWM()
+bool ServoController::initializePWM()
 {
     try {
         // Check if PWM chip exists
@@ -92,6 +63,7 @@ bool GPIOWriterService::initializePWM()
             channel.enabled = true;
 
             pwm_channels_.push_back(channel);
+            RCLCPP_INFO(get_logger(), "Initialized PWM channel %d for pin %d", i, PWM_PINS[i]);
         }
         return true;
     } catch (const std::exception& e) {
@@ -100,13 +72,7 @@ bool GPIOWriterService::initializePWM()
     }
 }
 
-void GPIOWriterService::cleanupGpio()
-{
-    gpio_lines_.clear();
-    gpio_chip_.reset();
-}
-
-void GPIOWriterService::cleanupPWM()
+void ServoController::cleanupPWM()
 {
     for (const auto& channel : pwm_channels_) {
         if (channel.enabled) {
@@ -115,43 +81,18 @@ void GPIOWriterService::cleanupPWM()
     }
 }
 
-void GPIOWriterService::handleGPIORequest(
-    const std::shared_ptr<dexi_interfaces::srv::GPIOSend::Request> request,
-    std::shared_ptr<dexi_interfaces::srv::GPIOSend::Response> response)
-{
-    try {
-        // Find the line for the requested pin
-        auto it = std::find(std::begin(GPIO_PINS), std::end(GPIO_PINS), request->pin);
-        if (it == std::end(GPIO_PINS)) {
-            throw std::runtime_error("Invalid GPIO pin");
-        }
-        
-        size_t index = std::distance(std::begin(GPIO_PINS), it);
-        gpio_lines_[index]->set_value(request->state ? 1 : 0);
-
-        response->success = true;
-        response->message = "Successfully set pin " + std::to_string(request->pin) + 
-                          " to " + std::to_string(request->state);
-    }
-    catch (const std::exception& e) {
-        response->success = false;
-        response->message = "Error setting pin " + std::to_string(request->pin) + 
-                          ": " + e.what();
-    }
-}
-
-void GPIOWriterService::handleServoRequest(
+void ServoController::handleServoRequest(
     const std::shared_ptr<dexi_interfaces::srv::ServoControl::Request> request,
     std::shared_ptr<dexi_interfaces::srv::ServoControl::Response> response)
 {
     try {
         // Find the channel for the requested pin
-        auto it = std::find(std::begin(GPIO_PINS), std::end(GPIO_PINS), request->pin);
-        if (it == std::end(GPIO_PINS)) {
+        auto it = std::find(std::begin(PWM_PINS), std::end(PWM_PINS), request->pin);
+        if (it == std::end(PWM_PINS)) {
             throw std::runtime_error("Invalid servo pin");
         }
         
-        size_t index = std::distance(std::begin(GPIO_PINS), it);
+        size_t index = std::distance(std::begin(PWM_PINS), it);
         
         // Calculate duty cycle based on angle
         int min_pw = request->min_pw > 0 ? request->min_pw : MIN_DUTY_NS / 1000;
@@ -173,12 +114,12 @@ void GPIOWriterService::handleServoRequest(
     }
 }
 
-bool GPIOWriterService::setPWMDutyCycle(const PWMChannel& channel, int duty_ns)
+bool ServoController::setPWMDutyCycle(const PWMChannel& channel, int duty_ns)
 {
     return writeSysfs(channel.path + "/duty_cycle", std::to_string(duty_ns));
 }
 
-int GPIOWriterService::mapAngleToPulseWidth(int angle, int min_pw, int max_pw)
+int ServoController::mapAngleToPulseWidth(int angle, int min_pw, int max_pw)
 {
     // Ensure angle is within bounds
     angle = std::max(0, std::min(180, angle));
@@ -187,17 +128,12 @@ int GPIOWriterService::mapAngleToPulseWidth(int angle, int min_pw, int max_pw)
     return min_pw + (angle * (max_pw - min_pw) / 180);
 }
 
-std::string GPIOWriterService::getGPIOServiceName(int pin)
-{
-    return "~/write_gpio_" + std::to_string(pin);
-}
-
-std::string GPIOWriterService::getServoServiceName(int pin)
+std::string ServoController::getServoServiceName(int pin)
 {
     return "~/servo_control_" + std::to_string(pin);
 }
 
-bool GPIOWriterService::writeSysfs(const std::string& path, const std::string& value)
+bool ServoController::writeSysfs(const std::string& path, const std::string& value)
 {
     try {
         std::ofstream ofs(path);
@@ -216,7 +152,7 @@ bool GPIOWriterService::writeSysfs(const std::string& path, const std::string& v
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<GPIOWriterService>();
+    auto node = std::make_shared<ServoController>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
