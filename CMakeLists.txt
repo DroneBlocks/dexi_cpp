@@ -31,21 +31,33 @@ ament_target_dependencies(
   "dexi_interfaces"
 )
 
-# GPIO Manager
-add_executable(gpio_manager src/gpio_manager.cpp)
-target_include_directories(gpio_manager PUBLIC
+# GPIO Reader
+add_executable(gpio_reader src/gpio_reader.cpp)
+target_include_directories(gpio_reader PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(gpio_manager PUBLIC c_std_99 cxx_std_17)
+target_compile_features(gpio_reader PUBLIC c_std_99 cxx_std_17)
 ament_target_dependencies(
-  gpio_manager
+  gpio_reader
   "rclcpp"
   "std_msgs"
+)
+target_link_libraries(gpio_reader ${GPIOD_LIBRARIES})
+
+# GPIO Writer Service
+add_executable(gpio_writer_service src/gpio_writer_service.cpp)
+target_include_directories(gpio_writer_service PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(gpio_writer_service PUBLIC c_std_99 cxx_std_17)
+ament_target_dependencies(
+  gpio_writer_service
+  "rclcpp"
   "dexi_interfaces"
 )
-target_link_libraries(gpio_manager ${GPIOD_LIBRARIES})
+target_link_libraries(gpio_writer_service ${GPIOD_LIBRARIES} stdc++fs)
 
-install(TARGETS px4_offboard_manager gpio_manager
+install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
