@@ -1,7 +1,7 @@
 #include "dexi_cpp/px4_offboard_manager.hpp"
 
-PX4OffboardManager::PX4OffboardManager()
-: Node("px4_offboard_manager"),
+PX4OffboardManager::PX4OffboardManager(const rclcpp::NodeOptions &options)
+: Node("px4_offboard_manager", options),
   qos_profile_(1)
 {
     // Configure QoS profile

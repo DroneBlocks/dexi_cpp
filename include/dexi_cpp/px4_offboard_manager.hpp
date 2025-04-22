@@ -1,5 +1,5 @@
-#ifndef PX4_OFFBOARD_MANAGER_HPP
-#define PX4_OFFBOARD_MANAGER_HPP
+#ifndef DEXI_CPP__PX4_OFFBOARD_MANAGER_HPP_
+#define DEXI_CPP__PX4_OFFBOARD_MANAGER_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
@@ -15,9 +15,10 @@
 #include <memory>
 #include <cmath>
 
-class PX4OffboardManager : public rclcpp::Node {
+class PX4OffboardManager : public rclcpp::Node
+{
 public:
-    PX4OffboardManager();
+    PX4OffboardManager(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
     ~PX4OffboardManager();
 
 private:
@@ -89,4 +90,4 @@ private:
     void sendOffboardHeartbeat();
 };
 
-#endif // PX4_OFFBOARD_MANAGER_HPP 
+#endif // DEXI_CPP__PX4_OFFBOARD_MANAGER_HPP_ 
