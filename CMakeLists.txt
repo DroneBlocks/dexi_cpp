@@ -12,9 +12,11 @@ find_package(px4_msgs REQUIRED)
 find_package(dexi_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# Find libgpiod
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GPIOD REQUIRED IMPORTED_TARGET libgpiod libgpiodcxx)
+# Find lgpio
+find_library(LGPIO_LIBRARY NAMES lgpio)
+if(NOT LGPIO_LIBRARY)
+    message(FATAL_ERROR "lgpio library not found")
+endif()
 
 include_directories(include)
 
@@ -42,7 +44,7 @@ ament_target_dependencies(
   "rclcpp"
   "std_msgs"
 )
-target_link_libraries(gpio_reader ${GPIOD_LIBRARIES})
+target_link_libraries(gpio_reader ${LGPIO_LIBRARY})
 
 # GPIO Writer Service
 add_executable(gpio_writer_service src/gpio_writer_service.cpp)
@@ -55,7 +57,7 @@ ament_target_dependencies(
   "rclcpp"
   "dexi_interfaces"
 )
-target_link_libraries(gpio_writer_service ${GPIOD_LIBRARIES} stdc++fs)
+target_link_libraries(gpio_writer_service ${LGPIO_LIBRARY} stdc++fs)
 
 # Servo Controller
 add_executable(servo_controller src/servo_controller.cpp)
@@ -68,7 +70,7 @@ ament_target_dependencies(
   "rclcpp"
   "dexi_interfaces"
 )
-target_link_libraries(servo_controller stdc++fs)
+target_link_libraries(servo_controller ${LGPIO_LIBRARY} stdc++fs)
 
 install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller
   DESTINATION lib/${PROJECT_NAME})

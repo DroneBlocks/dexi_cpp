@@ -9,5 +9,8 @@ def generate_launch_description():
             name='servo_controller',
             output='screen',
             emulate_tty=True,
+            parameters=[{
+                'servo_pins': [13, 16, 18, 19]  # Configure multiple servo pins
+            }]
         )
     ]) 

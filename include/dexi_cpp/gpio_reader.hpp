@@ -1,31 +1,26 @@
-#ifndef DEXI_CPP__GPIO_READER_HPP_
-#define DEXI_CPP__GPIO_READER_HPP_
+#ifndef GPIO_READER_HPP
+#define GPIO_READER_HPP
 
 #include <rclcpp/rclcpp.hpp>
-#include <gpiod.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <memory>
-#include <string>
 #include <vector>
-
-#include "std_msgs/msg/bool.hpp"
+#include <lgpio.h>
 
 class GPIOReader : public rclcpp::Node
 {
 public:
     GPIOReader();
+    ~GPIOReader();
 
 private:
-    // GPIO pins configuration for inputs
-    static constexpr int GPIO_PINS[] = {20, 21, 22, 23, 24};  // Input pins
-    static constexpr size_t NUM_PINS = sizeof(GPIO_PINS) / sizeof(GPIO_PINS[0]);
-    
     // ROS2 components
-    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> gpio_state_publishers_;
     rclcpp::TimerBase::SharedPtr timer_;
+    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> gpio_publishers_;
     
-    // GPIO interface
-    std::unique_ptr<gpiod::chip> chip_;
-    std::vector<std::unique_ptr<gpiod::line>> gpio_lines_;
+    // GPIO components
+    int gpio_handle_;  // lgpio handle for the chip
+    std::vector<int> gpio_pins_;  // List of GPIO pins to read
     
     // Callbacks
     void timerCallback();
@@ -33,7 +28,6 @@ private:
     // Helper functions
     bool initializeGpio();
     void cleanupGpio();
-    std::string getPinTopicName(int pin);
 };
 
-#endif // DEXI_CPP__GPIO_READER_HPP_ 
+#endif // GPIO_READER_HPP 

@@ -1,79 +1,122 @@
 #include "dexi_cpp/gpio_reader.hpp"
 #include <rclcpp/rclcpp.hpp>
+#include <functional>
 
-GPIOReader::GPIOReader() : Node("gpio_reader")
+using std::placeholders::_1;
+
+// GPIO pins configuration for inputs
+static constexpr int GPIO_PINS[] = {20, 21, 22, 23, 24};  // Input pins
+static constexpr size_t NUM_PINS = sizeof(GPIO_PINS) / sizeof(GPIO_PINS[0]);
+
+GPIOReader::GPIOReader()
+: Node("gpio_reader")
 {
-    // Initialize GPIO interface
+    // Open GPIO chip
+    gpio_handle_ = lgGpiochipOpen(0);
+    if (gpio_handle_ < 0) {
+        RCLCPP_ERROR(get_logger(), "Failed to open GPIO chip");
+        return;
+    }
+    RCLCPP_INFO(get_logger(), "Successfully opened GPIO chip");
+
+    // Initialize GPIO
     if (!initializeGpio()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to initialize GPIO interface");
+        RCLCPP_ERROR(get_logger(), "Failed to initialize GPIO");
         return;
     }
 
     // Create publishers for each GPIO pin
     for (size_t i = 0; i < NUM_PINS; ++i) {
         int pin = GPIO_PINS[i];
-        std::string topic_name = getPinTopicName(pin);
-        gpio_state_publishers_.push_back(
-            this->create_publisher<std_msgs::msg::Bool>(topic_name, 10));
+        auto publisher = create_publisher<std_msgs::msg::Bool>(
+            "~/gpio_" + std::to_string(pin),
+            10
+        );
+        gpio_publishers_.push_back(publisher);
+        RCLCPP_INFO(get_logger(), "Created publisher for GPIO %d", pin);
     }
 
     // Create timer for reading GPIO states
-    timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(250),  // 250ms = 0.25s
-        std::bind(&GPIOReader::timerCallback, this));
-
-    RCLCPP_INFO(this->get_logger(), "GPIO Reader node initialized successfully");
+    timer_ = create_wall_timer(
+        std::chrono::milliseconds(100),
+        std::bind(&GPIOReader::timerCallback, this)
+    );
 }
 
-std::string GPIOReader::getPinTopicName(int pin)
+GPIOReader::~GPIOReader()
 {
-    return "gpio_" + std::to_string(pin) + "_input";
+    RCLCPP_INFO(get_logger(), "Shutting down GPIO reader");
+    cleanupGpio();
+    if (gpio_handle_ >= 0) {
+        lgGpiochipClose(gpio_handle_);
+    }
 }
 
 bool GPIOReader::initializeGpio()
 {
     try {
-        // Open the GPIO chip
-        chip_ = std::make_unique<gpiod::chip>("gpiochip0");
-        
-        // Reserve and configure all GPIO lines as inputs with pull-up
+        // Initialize GPIO pins
         for (size_t i = 0; i < NUM_PINS; ++i) {
-            auto line = chip_->get_line(GPIO_PINS[i]);
-            line.request({"gpio_reader", gpiod::line_request::DIRECTION_INPUT, gpiod::line_request::FLAG_BIAS_PULL_UP});
-            gpio_lines_.push_back(std::make_unique<gpiod::line>(line));
+            int pin = GPIO_PINS[i];
+            
+            // Claim as input with pull-up enabled
+            if (lgGpioClaimInput(gpio_handle_, LG_SET_PULL_UP, pin) != LG_OKAY) {
+                RCLCPP_ERROR(get_logger(), "Failed to claim GPIO %d for input", pin);
+                continue;
+            }
+            
+            gpio_pins_.push_back(pin);
+            RCLCPP_INFO(get_logger(), "Successfully initialized GPIO %d", pin);
         }
+
+        if (gpio_pins_.empty()) {
+            RCLCPP_ERROR(get_logger(), "No GPIO pins were successfully initialized");
+            return false;
+        }
+
+        RCLCPP_INFO(get_logger(), "Successfully initialized %zu GPIO pins", gpio_pins_.size());
         return true;
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to initialize GPIO: %s", e.what());
-        cleanupGpio();
+        RCLCPP_ERROR(get_logger(), "GPIO initialization failed: %s", e.what());
         return false;
     }
 }
 
 void GPIOReader::cleanupGpio()
 {
-    gpio_lines_.clear();
-    chip_.reset();
+    RCLCPP_INFO(get_logger(), "Cleaning up GPIO pins");
+    // Release all GPIO pins
+    for (int pin : gpio_pins_) {
+        lgGpioFree(gpio_handle_, pin);
+    }
+    gpio_pins_.clear();
+    RCLCPP_INFO(get_logger(), "GPIO cleanup complete");
 }
 
 void GPIOReader::timerCallback()
 {
-    for (size_t i = 0; i < NUM_PINS; ++i) {
-        try {
-            // Read the current state of the GPIO line
-            bool pin_state = gpio_lines_[i]->get_value() != 0;
+    try {
+        // Read and publish state for each GPIO pin
+        for (size_t i = 0; i < gpio_pins_.size(); ++i) {
+            int pin = gpio_pins_[i];
+            auto msg = std::make_unique<std_msgs::msg::Bool>();
             
-            // Create and publish the message
-            auto msg = std_msgs::msg::Bool();
-            msg.data = pin_state;
-            gpio_state_publishers_[i]->publish(msg);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to read GPIO pin %d: %s", GPIO_PINS[i], e.what());
+            // Read GPIO value
+            int value = lgGpioRead(gpio_handle_, pin);
+            if (value < 0) {
+                RCLCPP_ERROR(get_logger(), "Failed to read GPIO %d", pin);
+                continue;
+            }
+            
+            msg->data = (value != 0);
+            gpio_publishers_[i]->publish(std::move(msg));
         }
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(get_logger(), "Error in timer callback: %s", e.what());
     }
 }
 
-int main(int argc, char * argv[])
+int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<GPIOReader>();
