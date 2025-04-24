@@ -67,6 +67,31 @@ The service will return:
 - `success`: true if the operation was successful
 - `message`: A status message describing the result
 
+### Controlling Servos
+
+To control a servo motor, use the `/servo_control` service:
+
+```bash
+# Move servo on GPIO 13 to 90 degrees (center position)
+ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 13, angle: 90.0}"
+
+# Move servo on GPIO 13 to 0 degrees (full left)
+ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 13, angle: 0.0}"
+
+# Move servo on GPIO 13 to 180 degrees (full right)
+ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 13, angle: 180.0}"
+```
+
+The service accepts the following parameters:
+- `pin`: The GPIO pin number the servo is connected to
+- `angle`: The desired angle (0-180 degrees)
+- `min_pw`: (Optional) Minimum pulse width in microseconds (default: 500)
+- `max_pw`: (Optional) Maximum pulse width in microseconds (default: 2500)
+
+The service will return:
+- `success`: true if the operation was successful
+- `message`: A status message describing the result
+
 ## Installation and Setup
 
 ### Installing Required Libraries
