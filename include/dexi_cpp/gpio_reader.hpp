@@ -1,11 +1,13 @@
-#ifndef GPIO_READER_HPP
-#define GPIO_READER_HPP
+#ifndef DEXI_CPP_GPIO_READER_HPP
+#define DEXI_CPP_GPIO_READER_HPP
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
-#include <memory>
 #include <vector>
-#include <lgpio.h>
+#include <map>
+
+namespace dexi_cpp
+{
 
 class GPIOReader : public rclcpp::Node
 {
@@ -30,4 +32,6 @@ private:
     void cleanupGpio();
 };
 
-#endif // GPIO_READER_HPP 
+} // namespace dexi_cpp
+
+#endif // DEXI_CPP_GPIO_READER_HPP 

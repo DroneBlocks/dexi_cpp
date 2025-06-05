@@ -1,16 +1,25 @@
 #include "dexi_cpp/gpio_reader.hpp"
 #include <rclcpp/rclcpp.hpp>
 #include <functional>
+#include <lgpio.h>
 
 using std::placeholders::_1;
 
-// GPIO pins configuration for inputs
-static constexpr int GPIO_PINS[] = {20, 21, 22, 23, 24};  // Input pins
-static constexpr size_t NUM_PINS = sizeof(GPIO_PINS) / sizeof(GPIO_PINS[0]);
+namespace dexi_cpp
+{
 
 GPIOReader::GPIOReader()
 : Node("gpio_reader")
 {
+    // Declare and get parameters
+    this->declare_parameter("gpio_pins", std::vector<int64_t>{20, 21, 22});  // Default pins
+    auto gpio_pins_param = this->get_parameter("gpio_pins").as_integer_array();
+    
+    // Convert to vector of int
+    for (const auto& pin : gpio_pins_param) {
+        gpio_pins_.push_back(static_cast<int>(pin));
+    }
+
     // Open GPIO chip
     gpio_handle_ = lgGpiochipOpen(0);
     if (gpio_handle_ < 0) {
@@ -26,8 +35,8 @@ GPIOReader::GPIOReader()
     }
 
     // Create publishers for each GPIO pin
-    for (size_t i = 0; i < NUM_PINS; ++i) {
-        int pin = GPIO_PINS[i];
+    for (size_t i = 0; i < gpio_pins_.size(); ++i) {
+        int pin = gpio_pins_[i];
         auto publisher = create_publisher<std_msgs::msg::Bool>(
             "~/gpio_" + std::to_string(pin),
             10
@@ -56,8 +65,8 @@ bool GPIOReader::initializeGpio()
 {
     try {
         // Initialize GPIO pins
-        for (size_t i = 0; i < NUM_PINS; ++i) {
-            int pin = GPIO_PINS[i];
+        for (size_t i = 0; i < gpio_pins_.size(); ++i) {
+            int pin = gpio_pins_[i];
             
             // Claim as input with pull-up enabled
             if (lgGpioClaimInput(gpio_handle_, LG_SET_PULL_UP, pin) != LG_OKAY) {
@@ -65,7 +74,6 @@ bool GPIOReader::initializeGpio()
                 continue;
             }
             
-            gpio_pins_.push_back(pin);
             RCLCPP_INFO(get_logger(), "Successfully initialized GPIO %d", pin);
         }
 
@@ -116,10 +124,12 @@ void GPIOReader::timerCallback()
     }
 }
 
+} // namespace dexi_cpp
+
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<GPIOReader>();
+    auto node = std::make_shared<dexi_cpp::GPIOReader>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;

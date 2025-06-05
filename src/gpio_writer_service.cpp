@@ -1,17 +1,26 @@
 #include "dexi_cpp/gpio_writer_service.hpp"
 #include <rclcpp/rclcpp.hpp>
 #include <functional>
+#include <lgpio.h>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
 
-// GPIO pins configuration for outputs
-static constexpr int GPIO_PINS[] = {13, 16, 18, 19};  // Output pins
-static constexpr size_t NUM_PINS = sizeof(GPIO_PINS) / sizeof(GPIO_PINS[0]);
+namespace dexi_cpp
+{
 
 GPIOWriterService::GPIOWriterService()
 : Node("gpio_writer_service")
 {
+    // Declare and get parameters
+    this->declare_parameter("gpio_pins", std::vector<int64_t>{23, 24});  // Default pins
+    auto gpio_pins_param = this->get_parameter("gpio_pins").as_integer_array();
+    
+    // Convert to vector of int
+    for (const auto& pin : gpio_pins_param) {
+        gpio_pins_.push_back(static_cast<int>(pin));
+    }
+
     // Open GPIO chip
     gpio_handle_ = lgGpiochipOpen(0);
     if (gpio_handle_ < 0) {
@@ -34,12 +43,21 @@ GPIOWriterService::GPIOWriterService()
     RCLCPP_INFO(get_logger(), "GPIO writer service started");
 }
 
+GPIOWriterService::~GPIOWriterService()
+{
+    RCLCPP_INFO(get_logger(), "Shutting down GPIO writer service");
+    cleanupGpio();
+    if (gpio_handle_ >= 0) {
+        lgGpiochipClose(gpio_handle_);
+    }
+}
+
 bool GPIOWriterService::initializeGpio()
 {
     try {
         // Initialize GPIO pins
-        for (size_t i = 0; i < NUM_PINS; ++i) {
-            int pin = GPIO_PINS[i];
+        for (size_t i = 0; i < gpio_pins_.size(); ++i) {
+            int pin = gpio_pins_[i];
             
             // Claim GPIO for output
             if (lgGpioClaimOutput(gpio_handle_, 0, pin, 0) != LG_OKAY) {
@@ -47,7 +65,6 @@ bool GPIOWriterService::initializeGpio()
                 continue;
             }
             
-            gpio_pins_.push_back(pin);
             RCLCPP_INFO(get_logger(), "Successfully initialized GPIO %d", pin);
         }
 
@@ -103,10 +120,12 @@ void GPIOWriterService::handleWriteRequest(
     }
 }
 
+} // namespace dexi_cpp
+
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<GPIOWriterService>();
+    auto node = std::make_shared<dexi_cpp::GPIOWriterService>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
