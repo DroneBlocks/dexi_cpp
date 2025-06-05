@@ -37,11 +37,8 @@ ServoController::ServoController()
     }
     RCLCPP_INFO(get_logger(), "Successfully opened GPIO chip");
 
-    // Initialize servo pins
-    if (!initializeServoPins()) {
-        RCLCPP_ERROR(get_logger(), "Failed to initialize servo pins");
-        return;
-    }
+    // Initialize servo pins - continue even if some pins fail
+    initializeServoPins();
 
     // Create service for servo control
     servo_service_ = create_service<dexi_interfaces::srv::ServoControl>(
@@ -61,21 +58,32 @@ ServoController::~ServoController()
 
 bool ServoController::initializeServoPins()
 {
+    bool any_success = false;
     for (int pin : servo_pins_) {
         // Claim GPIO for output
         if (lgGpioClaimOutput(gpio_handle_, 0, pin, 0) != LG_OKAY) {
             RCLCPP_ERROR(get_logger(), "Failed to claim GPIO %d for output", pin);
-            return false;
+            continue;
         }
 
         // Start servo at center position
         if (lgTxServo(gpio_handle_, pin, MID_PULSE_WIDTH, PWM_FREQUENCY, 0, 0) < 0) {
             RCLCPP_ERROR(get_logger(), "Failed to initialize servo on GPIO %d", pin);
-            return false;
+            // Release the pin if servo initialization fails
+            lgGpioFree(gpio_handle_, pin);
+            continue;
         }
 
         RCLCPP_INFO(get_logger(), "Successfully initialized servo on GPIO %d", pin);
+        any_success = true;
     }
+
+    if (!any_success) {
+        RCLCPP_ERROR(get_logger(), "No servo pins were successfully initialized");
+        return false;
+    }
+
+    RCLCPP_INFO(get_logger(), "Successfully initialized %zu servo pins", servo_pins_.size());
     return true;
 }
 
