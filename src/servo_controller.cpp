@@ -1,6 +1,5 @@
 #include "dexi_cpp/servo_controller.hpp"
 #include <rclcpp/rclcpp.hpp>
-#include <lgpio.h>
 #include <functional>
 #include <chrono>
 
@@ -20,25 +19,26 @@ namespace dexi_cpp
 ServoController::ServoController()
 : Node("servo_controller")
 {
-    // Declare and get parameters
-    this->declare_parameter("servo_pins", std::vector<int64_t>{13});  // Default to pin 13
-    auto servo_pins_param = this->get_parameter("servo_pins").as_integer_array();
-    
-    // Convert to vector of int
-    for (const auto& pin : servo_pins_param) {
-        servo_pins_.push_back(static_cast<int>(pin));
-    }
-
-    // Open GPIO chip
-    gpio_handle_ = lgGpiochipOpen(0);
-    if (gpio_handle_ < 0) {
-        RCLCPP_ERROR(get_logger(), "Failed to open GPIO chip");
+    // Open I2C bus
+    i2c_fd_ = open("/dev/i2c-1", O_RDWR);
+    if (i2c_fd_ < 0) {
+        RCLCPP_ERROR(get_logger(), "Failed to open I2C bus");
         return;
     }
-    RCLCPP_INFO(get_logger(), "Successfully opened GPIO chip");
 
-    // Initialize servo pins - continue even if some pins fail
-    initializeServoPins();
+    // Set I2C slave address
+    if (ioctl(i2c_fd_, I2C_SLAVE, PCA9685_ADDR) < 0) {
+        RCLCPP_ERROR(get_logger(), "Failed to set I2C slave address");
+        close(i2c_fd_);
+        return;
+    }
+
+    // Initialize PCA9685
+    if (!initializePCA9685()) {
+        RCLCPP_ERROR(get_logger(), "Failed to initialize PCA9685");
+        close(i2c_fd_);
+        return;
+    }
 
     // Create service for servo control
     servo_service_ = create_service<dexi_interfaces::srv::ServoControl>(
@@ -51,40 +51,51 @@ ServoController::ServoController()
 ServoController::~ServoController()
 {
     RCLCPP_INFO(get_logger(), "Shutting down servo controller");
-    if (gpio_handle_ >= 0) {
-        lgGpiochipClose(gpio_handle_);
+    if (i2c_fd_ >= 0) {
+        close(i2c_fd_);
     }
 }
 
-bool ServoController::initializeServoPins()
+bool ServoController::initializePCA9685()
 {
-    bool any_success = false;
-    for (int pin : servo_pins_) {
-        // Claim GPIO for output
-        if (lgGpioClaimOutput(gpio_handle_, 0, pin, 0) != LG_OKAY) {
-            RCLCPP_ERROR(get_logger(), "Failed to claim GPIO %d for output", pin);
-            continue;
+    try {
+        // Wake up PCA9685 (clear sleep)
+        writeByte(MODE1, 0x00);
+
+        // Set PWM frequency to 50Hz for servos
+        writeByte(MODE1, 0x10); // sleep
+        writeByte(PRESCALE, 121); // 50Hz
+        writeByte(MODE1, 0x00); // wake
+        usleep(5000);
+        writeByte(MODE1, 0xA1); // auto-increment on
+
+        // Initialize all servos to center position
+        for (int i = 0; i < 4; i++) {
+            setPWM(i, 0, MID_PULSE_WIDTH);
         }
 
-        // Start servo at center position
-        if (lgTxServo(gpio_handle_, pin, MID_PULSE_WIDTH, PWM_FREQUENCY, 0, 0) < 0) {
-            RCLCPP_ERROR(get_logger(), "Failed to initialize servo on GPIO %d", pin);
-            // Release the pin if servo initialization fails
-            lgGpioFree(gpio_handle_, pin);
-            continue;
-        }
-
-        RCLCPP_INFO(get_logger(), "Successfully initialized servo on GPIO %d", pin);
-        any_success = true;
-    }
-
-    if (!any_success) {
-        RCLCPP_ERROR(get_logger(), "No servo pins were successfully initialized");
+        RCLCPP_INFO(get_logger(), "Successfully initialized PCA9685");
+        return true;
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(get_logger(), "Failed to initialize PCA9685: %s", e.what());
         return false;
     }
+}
 
-    RCLCPP_INFO(get_logger(), "Successfully initialized %zu servo pins", servo_pins_.size());
-    return true;
+void ServoController::writeByte(uint8_t reg, uint8_t value)
+{
+    uint8_t buffer[2] = {reg, value};
+    if (write(i2c_fd_, buffer, 2) != 2) {
+        throw std::runtime_error("Failed to write to I2C device");
+    }
+}
+
+void ServoController::setPWM(int channel, int on, int off)
+{
+    writeByte(LED0_ON_L + 4 * channel, on & 0xFF);
+    writeByte(LED0_ON_L + 4 * channel + 1, on >> 8);
+    writeByte(LED0_ON_L + 4 * channel + 2, off & 0xFF);
+    writeByte(LED0_ON_L + 4 * channel + 3, off >> 8);
 }
 
 void ServoController::servoControlCallback(
@@ -92,11 +103,10 @@ void ServoController::servoControlCallback(
     std::shared_ptr<dexi_interfaces::srv::ServoControl::Response> response)
 {
     try {
-        // Check if requested pin is in our list of servo pins
-        auto it = std::find(servo_pins_.begin(), servo_pins_.end(), request->pin);
-        if (it == servo_pins_.end()) {
+        // Check if requested servo index is valid (0-3)
+        if (request->pin < 0 || request->pin > 3) {
             response->success = false;
-            response->message = "Pin " + std::to_string(request->pin) + " is not configured for servo control";
+            response->message = "Invalid servo index. Must be between 0 and 3";
             return;
         }
 
@@ -113,16 +123,11 @@ void ServoController::servoControlCallback(
         );
 
         // Update servo position
-        if (lgTxServo(gpio_handle_, request->pin, pulse_width, PWM_FREQUENCY, 0, 0) < 0) {
-            RCLCPP_ERROR(get_logger(), "Failed to update servo position on GPIO %d", request->pin);
-            response->success = false;
-            response->message = "Failed to update servo position";
-            return;
-        }
+        setPWM(request->pin, 0, pulse_width);
 
         response->success = true;
         response->message = "Servo position updated successfully";
-        RCLCPP_INFO(get_logger(), "Updated servo on GPIO %d to angle %f (pulse width: %d)", 
+        RCLCPP_INFO(get_logger(), "Updated servo %d to angle %f (pulse width: %d)", 
             request->pin, angle, pulse_width);
     } catch (const std::exception& e) {
         RCLCPP_ERROR(get_logger(), "Error in servo control callback: %s", e.what());
