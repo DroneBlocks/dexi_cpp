@@ -11,7 +11,6 @@ static constexpr int PWM_FREQUENCY = 50;  // 50Hz standard servo frequency
 static constexpr int MIN_PULSE_WIDTH = 500;  // 0.5ms (0 degrees)
 static constexpr int MAX_PULSE_WIDTH = 2500; // 2.5ms (180 degrees)
 static constexpr int MID_PULSE_WIDTH = 1500; // 1.5ms (90 degrees)
-static constexpr int SERVO_PIN = 13; // Assuming SERVO_PIN is defined in the header file
 
 namespace dexi_cpp
 {
