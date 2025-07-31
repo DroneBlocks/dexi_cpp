@@ -51,6 +51,13 @@ RGBStatusLEDController::RGBStatusLEDController()
 RGBStatusLEDController::~RGBStatusLEDController()
 {
     RCLCPP_INFO(get_logger(), "Shutting down RGB status LED controller");
+    
+    // Set all LED pins to LOW before shutting down
+    if (i2c_fd_ >= 0) {
+        setAllPinsLow();
+        RCLCPP_INFO(get_logger(), "All RGB LEDs set to LOW during shutdown");
+    }
+    
     if (i2c_fd_ >= 0) {
         close(i2c_fd_);
     }
