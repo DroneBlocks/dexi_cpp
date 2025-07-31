@@ -2,13 +2,14 @@
 #define DEXI_CPP_RGB_STATUS_LED_CONTROLLER_HPP_
 
 #include <rclcpp/rclcpp.hpp>
-#include "dexi_interfaces/srv/led_control.hpp"
+#include "dexi_interfaces/srv/set_gpio.hpp"
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/i2c-dev.h>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace dexi_cpp
 {
@@ -32,9 +33,9 @@ private:
     void setAllPinsLow();
 
     // Service callback
-    void ledControlCallback(
-        const std::shared_ptr<dexi_interfaces::srv::LEDControl::Request> request,
-        std::shared_ptr<dexi_interfaces::srv::LEDControl::Response> response);
+    void handleWriteRequest(
+        const std::shared_ptr<dexi_interfaces::srv::SetGpio::Request> request,
+        std::shared_ptr<dexi_interfaces::srv::SetGpio::Response> response);
 
     // PCA9685 constants
     static constexpr uint8_t PCA9685_ADDR = 0x40;
@@ -49,7 +50,8 @@ private:
 
     // Member variables
     int i2c_fd_;
-    rclcpp::Service<dexi_interfaces::srv::LEDControl>::SharedPtr led_service_;
+    std::vector<int> led_pins_;
+    rclcpp::Service<dexi_interfaces::srv::SetGpio>::SharedPtr service_;
 };
 
 } // namespace dexi_cpp

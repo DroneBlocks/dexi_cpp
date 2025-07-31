@@ -12,6 +12,9 @@ namespace dexi_cpp
 RGBStatusLEDController::RGBStatusLEDController()
 : Node("rgb_status_led_controller")
 {
+    // Initialize LED pins
+    led_pins_ = {RED_LED_PIN, GREEN_LED_PIN, BLUE_LED_PIN};
+
     // Open I2C bus
     i2c_fd_ = open("/dev/i2c-1", O_RDWR);
     if (i2c_fd_ < 0) {
@@ -33,12 +36,12 @@ RGBStatusLEDController::RGBStatusLEDController()
         return;
     }
 
-    // Create service for LED control
-    led_service_ = create_service<dexi_interfaces::srv::LEDControl>(
-        "led_control",
-        std::bind(&RGBStatusLEDController::ledControlCallback, this, _1, _2)
+    // Create service for GPIO control
+    service_ = create_service<dexi_interfaces::srv::SetGpio>(
+        "~/set_gpio",
+        std::bind(&RGBStatusLEDController::handleWriteRequest, this, _1, _2)
     );
-    RCLCPP_INFO(get_logger(), "Created service for LED control");
+    RCLCPP_INFO(get_logger(), "Created service for RGB LED control");
 
     // Set all LEDs to HIGH by default
     setAllPinsHigh();
@@ -140,57 +143,32 @@ void RGBStatusLEDController::setAllPinsLow()
     RCLCPP_INFO(get_logger(), "All RGB LEDs set to LOW");
 }
 
-void RGBStatusLEDController::ledControlCallback(
-    const std::shared_ptr<dexi_interfaces::srv::LEDControl::Request> request,
-    std::shared_ptr<dexi_interfaces::srv::LEDControl::Response> response)
+void RGBStatusLEDController::handleWriteRequest(
+    const std::shared_ptr<dexi_interfaces::srv::SetGpio::Request> request,
+    std::shared_ptr<dexi_interfaces::srv::SetGpio::Response> response)
 {
     try {
-        std::string led_name = request->led_name;
-        bool state = request->state;
-        
-        // Convert LED name to pin number
-        int pin = -1;
-        if (led_name == "red" || led_name == "RED") {
-            pin = RED_LED_PIN;
-        } else if (led_name == "green" || led_name == "GREEN") {
-            pin = GREEN_LED_PIN;
-        } else if (led_name == "blue" || led_name == "BLUE") {
-            pin = BLUE_LED_PIN;
-        } else if (led_name == "all" || led_name == "ALL") {
-            // Handle all LEDs
-            if (state) {
-                setAllPinsHigh();
-                response->success = true;
-                response->message = "All LEDs set to HIGH";
-                RCLCPP_INFO(get_logger(), "All LEDs set to HIGH");
-            } else {
-                setAllPinsLow();
-                response->success = true;
-                response->message = "All LEDs set to LOW";
-                RCLCPP_INFO(get_logger(), "All LEDs set to LOW");
-            }
-            return;
-        } else {
+        // Find the pin in our list
+        auto it = std::find(led_pins_.begin(), led_pins_.end(), request->pin);
+        if (it == led_pins_.end()) {
             response->success = false;
-            response->message = "Invalid LED name. Use 'red', 'green', 'blue', or 'all'";
-            RCLCPP_ERROR(get_logger(), "Invalid LED name: %s", led_name.c_str());
+            response->message = "Pin not configured for RGB LED control";
             return;
         }
 
-        // Set individual LED state
-        if (state) {
-            setPinHigh(pin);
-            response->message = led_name + " LED set to HIGH";
+        // Set LED value using PCA9685
+        if (request->value) {
+            setPinHigh(request->pin);
         } else {
-            setPinLow(pin);
-            response->message = led_name + " LED set to LOW";
+            setPinLow(request->pin);
         }
 
         response->success = true;
-        RCLCPP_INFO(get_logger(), "%s LED set to %s", led_name.c_str(), state ? "HIGH" : "LOW");
+        response->message = "Successfully set RGB LED value";
+        RCLCPP_INFO(get_logger(), "Set RGB LED pin %d to %s", request->pin, request->value ? "HIGH" : "LOW");
 
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(get_logger(), "Error in LED control callback: %s", e.what());
+        RCLCPP_ERROR(get_logger(), "Error in RGB LED control callback: %s", e.what());
         response->success = false;
         response->message = std::string("Error: ") + e.what();
     }
