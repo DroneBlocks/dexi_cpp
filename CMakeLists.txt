@@ -72,7 +72,20 @@ ament_target_dependencies(
 )
 target_link_libraries(servo_controller ${LGPIO_LIBRARY} stdc++fs)
 
-install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller
+# RGB Status LED Controller
+add_executable(rgb_status_led_controller src/rgb_status_led_controller.cpp)
+target_include_directories(rgb_status_led_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(rgb_status_led_controller PUBLIC c_std_99 cxx_std_17)
+ament_target_dependencies(
+  rgb_status_led_controller
+  "rclcpp"
+  "dexi_interfaces"
+)
+target_link_libraries(rgb_status_led_controller ${LGPIO_LIBRARY} stdc++fs)
+
+install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller rgb_status_led_controller
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
