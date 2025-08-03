@@ -95,6 +95,7 @@ ament_target_dependencies(
   tca9555_controller
   "rclcpp"
   "dexi_interfaces"
+  "std_msgs"
 )
 
 install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller rgb_status_led_controller tca9555_controller

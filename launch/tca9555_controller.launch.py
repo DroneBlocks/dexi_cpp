@@ -13,13 +13,11 @@ def generate_launch_description():
                 'i2c_address': 32,  # 0x20 in decimal
                 'available_pins': [0, 1, 2, 3, 4],
                 'input_polling_rate': 1.0,  # Hz
-                'pin_modes': {
-                    '0': True,   # Pin 0: output (True = output, False = input)
-                    '1': True,   # Pin 1: output
-                    '2': True,   # Pin 2: output
-                    '3': False,  # Pin 3: input
-                    '4': False   # Pin 4: input
-                }
+                'pin_0_mode': True,   # Pin 0: output (True = output, False = input)
+                'pin_1_mode': True,   # Pin 1: output
+                'pin_2_mode': True,   # Pin 2: output
+                'pin_3_mode': False,  # Pin 3: input
+                'pin_4_mode': False   # Pin 4: input
             }]
         )
     ]) 

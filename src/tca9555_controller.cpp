@@ -18,7 +18,12 @@ TCA9555Controller::TCA9555Controller()
     this->declare_parameter("i2c_address", 0x20);         // TCA9555 address
     this->declare_parameter("available_pins", std::vector<int64_t>{0, 1, 2, 3, 4});  // Pins 0-4
     this->declare_parameter("input_polling_rate", 10.0);  // Hz
-    this->declare_parameter("pin_modes", std::map<std::string, bool>{});  // Pin modes: true=output, false=input
+    // Declare individual pin mode parameters
+    this->declare_parameter("pin_0_mode", true);   // Pin 0: output (true=output, false=input)
+    this->declare_parameter("pin_1_mode", true);   // Pin 1: output
+    this->declare_parameter("pin_2_mode", true);   // Pin 2: output
+    this->declare_parameter("pin_3_mode", false);  // Pin 3: input
+    this->declare_parameter("pin_4_mode", false);  // Pin 4: input
     
     i2c_device_ = this->get_parameter("i2c_device").as_string();
     i2c_address_ = static_cast<uint8_t>(this->get_parameter("i2c_address").as_int());
@@ -30,19 +35,16 @@ TCA9555Controller::TCA9555Controller()
         pin_modes_[static_cast<uint8_t>(pin)] = true;  // Default to output
     }
 
-    // Load pin modes from parameters
-    auto pin_modes_param = this->get_parameter("pin_modes").as_string_map();
-    for (const auto& [pin_str, mode_str] : pin_modes_param) {
-        try {
-            uint8_t pin = static_cast<uint8_t>(std::stoi(pin_str));
-            bool is_output = (mode_str == "true" || mode_str == "1");
-            if (pin < 5) {  // Only configure valid pins
-                pin_modes_[pin] = is_output;
-                RCLCPP_INFO(get_logger(), "Pin %d configured as: %s", pin, is_output ? "output" : "input");
-            }
-        } catch (const std::exception& e) {
-            RCLCPP_WARN(get_logger(), "Invalid pin mode for pin %s: %s", pin_str.c_str(), e.what());
-        }
+    // Load pin modes from individual parameters
+    pin_modes_[0] = this->get_parameter("pin_0_mode").as_bool();
+    pin_modes_[1] = this->get_parameter("pin_1_mode").as_bool();
+    pin_modes_[2] = this->get_parameter("pin_2_mode").as_bool();
+    pin_modes_[3] = this->get_parameter("pin_3_mode").as_bool();
+    pin_modes_[4] = this->get_parameter("pin_4_mode").as_bool();
+    
+    // Log pin configurations
+    for (uint8_t pin = 0; pin < 5; ++pin) {
+        RCLCPP_INFO(get_logger(), "Pin %d configured as: %s", pin, pin_modes_[pin] ? "output" : "input");
     }
 
     // Initialize I2C
