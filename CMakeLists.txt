@@ -85,7 +85,19 @@ ament_target_dependencies(
 )
 target_link_libraries(rgb_status_led_controller ${LGPIO_LIBRARY} stdc++fs)
 
-install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller rgb_status_led_controller
+# TCA9555 Controller
+add_executable(tca9555_controller src/tca9555_controller.cpp)
+target_include_directories(tca9555_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(tca9555_controller PUBLIC c_std_99 cxx_std_17)
+ament_target_dependencies(
+  tca9555_controller
+  "rclcpp"
+  "dexi_interfaces"
+)
+
+install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller rgb_status_led_controller tca9555_controller
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
