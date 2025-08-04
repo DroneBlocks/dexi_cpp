@@ -85,13 +85,14 @@ Manages TCA9555 16-bit I2C I/O expander for GPIO control with configurable pin m
 - Connect TCA9555 to I2C (SDA: GPIO 2, SCL: GPIO 3)
 - Set address pins A0, A1, A2 to GND for address 0x20
 - Power from 3.3V
+- **Note**: Supports pins 0-4 and 14-15
 
 ```bash
 ros2 launch dexi_cpp tca9555_controller.launch.py
 ```
 
 **Configuration:**
-The launch file configures pins 0-2 as outputs and pins 3-4 as inputs by default.
+The launch file configures pins 0-2 and 14-15 as outputs and pins 3-4 as inputs by default.
 
 **Services:**
 - `/tca9555_controller/set_tca9555_pin` (dexi_interfaces/srv/SetGpio) - Set output pin state
@@ -138,7 +139,9 @@ Modify pin modes in `launch/tca9555_controller.launch.py`:
 'pin_1_mode': True,   # Pin 1: output
 'pin_2_mode': True,   # Pin 2: output
 'pin_3_mode': False,  # Pin 3: input
-'pin_4_mode': False   # Pin 4: input
+'pin_4_mode': False,  # Pin 4: input
+'pin_14_mode': True,  # Pin 14: output
+'pin_15_mode': True   # Pin 15: output
 ```
 
 ### Parameter Overrides
@@ -198,6 +201,18 @@ python3 examples/example_pin_control.py
 ```
 
 This example subscribes to pin 4 input and mirrors its state to pin 0 output.
+
+### Toggle Pin Example
+
+A simple example that toggles TCA9555 pin 14 on and off at 1-second intervals:
+
+```bash
+# Make executable
+chmod +x examples/example_toggle_pin.py
+
+# Run the example (requires TCA9555 controller to be running)
+python3 examples/example_toggle_pin.py
+```
 
 ## Dependencies
 

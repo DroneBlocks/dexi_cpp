@@ -16,7 +16,7 @@ TCA9555Controller::TCA9555Controller()
     // Declare and get parameters
     this->declare_parameter("i2c_device", "/dev/i2c-1");  // Default I2C device
     this->declare_parameter("i2c_address", 0x20);         // TCA9555 address
-    this->declare_parameter("available_pins", std::vector<int64_t>{0, 1, 2, 3, 4});  // Pins 0-4
+    this->declare_parameter("available_pins", std::vector<int64_t>{0, 1, 2, 3, 4, 14, 15});  // Pins 0-4, 14-15
     this->declare_parameter("input_polling_rate", 10.0);  // Hz
     // Declare individual pin mode parameters
     this->declare_parameter("pin_0_mode", true);   // Pin 0: output (true=output, false=input)
@@ -24,6 +24,8 @@ TCA9555Controller::TCA9555Controller()
     this->declare_parameter("pin_2_mode", true);   // Pin 2: output
     this->declare_parameter("pin_3_mode", false);  // Pin 3: input
     this->declare_parameter("pin_4_mode", false);  // Pin 4: input
+    this->declare_parameter("pin_14_mode", true);  // Pin 14: output
+    this->declare_parameter("pin_15_mode", true);  // Pin 15: output
     
     i2c_device_ = this->get_parameter("i2c_device").as_string();
     i2c_address_ = static_cast<uint8_t>(this->get_parameter("i2c_address").as_int());
@@ -41,9 +43,11 @@ TCA9555Controller::TCA9555Controller()
     pin_modes_[2] = this->get_parameter("pin_2_mode").as_bool();
     pin_modes_[3] = this->get_parameter("pin_3_mode").as_bool();
     pin_modes_[4] = this->get_parameter("pin_4_mode").as_bool();
+    pin_modes_[14] = this->get_parameter("pin_14_mode").as_bool();
+    pin_modes_[15] = this->get_parameter("pin_15_mode").as_bool();
     
     // Log pin configurations
-    for (uint8_t pin = 0; pin < 5; ++pin) {
+    for (uint8_t pin : {0, 1, 2, 3, 4, 14, 15}) {
         RCLCPP_INFO(get_logger(), "Pin %d configured as: %s", pin, pin_modes_[pin] ? "output" : "input");
     }
 
@@ -59,8 +63,8 @@ TCA9555Controller::TCA9555Controller()
         std::bind(&TCA9555Controller::handleWriteRequest, this, _1, _2)
     );
 
-    // Create publishers for available pins only (0-4)
-    for (uint8_t pin = 0; pin < 5; ++pin) {
+    // Create publishers for available pins (0-4, 14-15)
+    for (uint8_t pin : {0, 1, 2, 3, 4, 14, 15}) {
         std::string topic_name = "~/gpio_" + std::to_string(pin) + "_state";
         pin_state_publishers_[pin] = create_publisher<std_msgs::msg::Bool>(topic_name, 10);
     }
@@ -195,8 +199,8 @@ bool TCA9555Controller::readRegister(uint8_t reg, uint16_t& value)
 
 bool TCA9555Controller::writePin(uint8_t pin, bool value)
 {
-    if (pin >= 5) {
-        RCLCPP_ERROR(get_logger(), "Invalid pin number: %d (must be 0-4)", pin);
+    if (pin >= 5 && pin != 14 && pin != 15) {
+        RCLCPP_ERROR(get_logger(), "Invalid pin number: %d (must be 0-4, 14, or 15)", pin);
         return false;
     }
 
@@ -217,16 +221,27 @@ bool TCA9555Controller::writePin(uint8_t pin, bool value)
     if (pin < 8) {
         // Port 0 (pins 0-7)
         return writeRegister(OUTPUT_PORT_0, output_state_ & 0xFF);
-    } else {
+    } else if (pin < 16) {
         // Port 1 (pins 8-15)
+        return writeRegister(OUTPUT_PORT_1, (output_state_ >> 8) & 0xFF);
+    } else {
+        // Pins 14-15 are on Port 1 (pins 8-15)
+        // Update internal state
+        if (value) {
+            output_state_ |= (1 << pin);
+        } else {
+            output_state_ &= ~(1 << pin);
+        }
+        
+        // Write to Port 1 (pins 8-15)
         return writeRegister(OUTPUT_PORT_1, (output_state_ >> 8) & 0xFF);
     }
 }
 
 bool TCA9555Controller::readPin(uint8_t pin, bool& value)
 {
-    if (pin >= 5) {
-        RCLCPP_ERROR(get_logger(), "Invalid pin number: %d (must be 0-4)", pin);
+    if (pin >= 5 && pin != 14 && pin != 15) {
+        RCLCPP_ERROR(get_logger(), "Invalid pin number: %d (must be 0-4, 14, or 15)", pin);
         return false;
     }
 
@@ -236,11 +251,20 @@ bool TCA9555Controller::readPin(uint8_t pin, bool& value)
         if (!readRegister(INPUT_PORT_0, input_state)) {
             return false;
         }
-    } else {
+    } else if (pin < 16) {
         // Read Port 1 (pins 8-15)
         if (!readRegister(INPUT_PORT_1, input_state)) {
             return false;
         }
+    } else {
+        // Pins 14-15 are on Port 1 (pins 8-15)
+        // Read from Port 1 (pins 8-15)
+        if (!readRegister(INPUT_PORT_1, input_state)) {
+            return false;
+        }
+        
+        value = (input_state & (1 << (pin - 8))) != 0;
+        return true;
     }
 
     value = (input_state & (1 << (pin % 8))) != 0;
@@ -280,10 +304,10 @@ void TCA9555Controller::handleWriteRequest(
     std::shared_ptr<dexi_interfaces::srv::SetGpio::Response> response)
 {
     try {
-        // Check if pin is valid (0-4)
-        if (request->pin >= 5) {
+        // Check if pin is valid (0-4, 14-15)
+        if (request->pin >= 5 && request->pin != 14 && request->pin != 15) {
             response->success = false;
-            response->message = "Invalid pin number (must be 0-4)";
+            response->message = "Invalid pin number (must be 0-4, 14, or 15)";
             return;
         }
 
