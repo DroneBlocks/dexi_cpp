@@ -1,221 +1,212 @@
-# GPIO Manager Node
+# DEXI C++ ROS2 Nodes
 
-This ROS2 node provides an interface to control GPIO pins on a Raspberry Pi 5. It supports reading and writing to specific GPIO pins through ROS2 services.
+A collection of C++ ROS2 nodes for the DEXI drone project, providing GPIO control, servo management, and I2C device interfaces.
 
-## Important Note for Raspberry Pi 5 Users
+## Nodes Overview
 
-The Raspberry Pi 5 uses a new RP1 chip for GPIO control, which is not yet fully supported by the pigpio library. This node currently uses pigpio, which may not work correctly on the Pi 5. We recommend one of the following alternatives:
+- **Servo Controller**: Controls servos via PCA9685 PWM controller
+- **TCA9555 Controller**: Manages TCA9555 16-bit I2C I/O expander for GPIO control
+- **RGB Status LED Controller**: Controls RGB status indicators
+- **PX4 Offboard Manager**: Manages PX4 offboard control
 
-1. Use the newer libgpiod library (recommended for Pi 5):
+## Prerequisites
+
+### System Dependencies
+
 ```bash
+# I2C support (required for TCA9555 and PCA9685)
 sudo apt-get update
-sudo apt-get install libgpiod-dev libgpiod-doc
+sudo apt-get install i2c-tools
+sudo usermod -a -G i2c $USER
 ```
 
-2. Use the standard Linux GPIO interface through sysfs (legacy method):
+### I2C Setup
+
+1. Enable I2C in raspi-config:
 ```bash
-sudo apt-get update
-sudo apt-get install gpiod
+sudo raspi-config
+# Interface Options -> I2C -> Enable
 ```
 
-We are working on updating this node to use libgpiod for better Pi 5 compatibility. Please check back for updates.
+2. Create udev rules for I2C access:
+```bash
+sudo bash -c 'echo "SUBSYSTEM==\"i2c-dev\", GROUP=\"i2c\", MODE=\"0660\"" > /etc/udev/rules.d/90-i2c.rules'
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
 
-## Supported GPIO Pins
+3. Verify I2C devices:
+```bash
+i2cdetect -y 1
+```
 
-The node supports the following GPIO pins:
-- 13
-- 16
-- 18
-- 19
-- 20
-- 21
-- 22
-- 23
-- 24
+## Building
+
+```bash
+# Build the package
+colcon build --packages-select dexi_cpp --symlink-install
+
+# Source the workspace
+source install/setup.bash
+```
 
 ## Usage
 
-### Launching the Node
+### Servo Controller
 
-```bash
-ros2 launch dexi_cpp gpio_manager.launch.py
-```
+Controls servos via PCA9685 PWM controller.
 
-### Setting GPIO State
-
-To set a GPIO pin high or low, use the `/set_gpio` service:
-
-```bash
-# Set pin 13 high
-ros2 service call /set_gpio gpio_manager/srv/SetGpio "{pin: 13, value: true}"
-
-# Set pin 13 low
-ros2 service call /set_gpio gpio_manager/srv/SetGpio "{pin: 13, value: false}"
-```
-
-### Reading GPIO State
-
-To read the current state of a GPIO pin, use the `/read_gpio` service:
-
-```bash
-# Read state of pin 13
-ros2 service call /read_gpio gpio_manager/srv/ReadGpio "{pin: 13}"
-```
-
-The service will return:
-- `value`: true if the pin is high, false if low
-- `success`: true if the operation was successful
-- `message`: A status message describing the result
-
-### Controlling Servos with PCA9685
-
-The servo controller node uses a PCA9685 PWM controller chip to control up to 4 servos. The servos are connected to the PCA9685's PWM channels 0-3.
-
-#### Hardware Setup
-
-1. Connect the PCA9685 to your Raspberry Pi:
-   - SDA -> GPIO 2 (Pin 3)
-   - SCL -> GPIO 3 (Pin 5)
-   - VCC -> 3.3V or 5V (depending on your servo requirements)
-   - GND -> Ground
-   - V+ -> 5V (for servo power)
-   - Servos -> PWM channels 0-3
-
-2. Enable I2C on your Raspberry Pi:
-```bash
-sudo raspi-config
-# Navigate to Interface Options -> I2C -> Enable
-```
-
-3. Install I2C tools:
-```bash
-sudo apt-get update
-sudo apt-get install i2c-tools
-```
-
-4. Grant I2C access to non-root users:
-```bash
-# Add your user to the i2c group
-sudo usermod -a -G i2c $USER
-
-# Create udev rules for I2C
-sudo bash -c 'echo "SUBSYSTEM==\"i2c-dev\", GROUP=\"i2c\", MODE=\"0660\"" > /etc/udev/rules.d/90-i2c.rules'
-
-# Reload udev rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-
-# Note: You may need to log out and log back in for the group changes to take effect
-```
-
-5. Verify the PCA9685 is detected:
-```bash
-i2cdetect -y 1
-# Should show device at address 0x40
-```
-
-#### Launching the Servo Controller
+**Hardware Setup:**
+- Connect PCA9685 to I2C (SDA: GPIO 2, SCL: GPIO 3)
+- Connect servos to PWM channels 0-3
+- Power servos from 5V supply
 
 ```bash
 ros2 launch dexi_cpp servo_controller.launch.py
 ```
 
-#### Controlling Servos
+**Services:**
+- `/servo_control` (dexi_interfaces/srv/ServoControl) - Control servo position
 
-To control a servo motor, use the `/servo_control` service:
-
+**Usage:**
 ```bash
-# Move servo 0 to 90 degrees (center position)
+# Move servo 0 to 90 degrees
 ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 90.0}"
 
-# Move servo 0 to 0 degrees (full left)
+# Move servo 0 to 0 degrees
 ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 0.0}"
-
-# Move servo 0 to 180 degrees (full right)
-ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 180.0}"
 ```
 
-The service accepts the following parameters:
-- `pin`: The servo index (0-3) corresponding to the PCA9685 PWM channel
-- `angle`: The desired angle (0-180 degrees)
-- `min_pw`: (Optional) Minimum pulse width (default: 150)
-- `max_pw`: (Optional) Maximum pulse width (default: 600)
+### TCA9555 Controller
 
-The service will return:
-- `success`: true if the operation was successful
-- `message`: A status message describing the result
+Manages TCA9555 16-bit I2C I/O expander for GPIO control with configurable pin modes.
 
-#### Servo Specifications
+**Hardware Setup:**
+- Connect TCA9555 to I2C (SDA: GPIO 2, SCL: GPIO 3)
+- Set address pins A0, A1, A2 to GND for address 0x20
+- Power from 3.3V
 
-- PWM Frequency: 50Hz
-- Pulse Width Range: 150-600 (0.5ms - 2.5ms)
-- Center Position: 375 (1.5ms)
-- Supported Servos: Up to 4 servos (indices 0-3)
-
-## Installation and Setup
-
-### Installing Required Libraries
-
-For Raspberry Pi 4 and earlier:
 ```bash
-sudo apt-get update
-sudo apt-get install pigpio
-sudo systemctl enable pigpiod
-sudo systemctl start pigpiod
+ros2 launch dexi_cpp tca9555_controller.launch.py
 ```
 
-For Raspberry Pi 5 (using libgpiod):
+**Configuration:**
+The launch file configures pins 0-2 as outputs and pins 3-4 as inputs by default.
+
+**Services:**
+- `/tca9555_controller/set_tca9555_pin` (dexi_interfaces/srv/SetGpio) - Set output pin state
+
+**Topics:**
+- `/tca9555_controller/gpio_<pin>_state` (std_msgs/Bool) - Input pin states
+
+**Usage:**
 ```bash
-sudo apt-get update
-sudo apt-get install libgpiod-dev libgpiod-doc
+# Set output pin 0 high
+ros2 service call /tca9555_controller/set_tca9555_pin dexi_interfaces/srv/SetGpio "{pin: 0, value: true}"
+
+# Set output pin 0 low
+ros2 service call /tca9555_controller/set_tca9555_pin dexi_interfaces/srv/SetGpio "{pin: 0, value: false}"
+
+# Monitor input pin 3
+ros2 topic echo /tca9555_controller/gpio_3_state
 ```
 
-### Building and Running as Different Users
+### RGB Status LED Controller
 
-When switching between users (e.g., from a non-root user to root), you need to rebuild and reinstall the package to ensure the correct binaries are used. Here's the process:
+Controls RGB status indicators.
 
-1. Clean just the dexi_cpp build files:
 ```bash
-# Remove only dexi_cpp build files
+ros2 launch dexi_cpp rgb_status_led_controller.launch.py
+```
+
+### PX4 Offboard Manager
+
+Manages PX4 offboard control.
+
+```bash
+ros2 launch dexi_cpp px4_offboard_manager.launch.py
+```
+
+## Configuration
+
+### TCA9555 Pin Configuration
+
+Modify pin modes in `launch/tca9555_controller.launch.py`:
+
+```python
+'pin_0_mode': True,   # Pin 0: output
+'pin_1_mode': True,   # Pin 1: output
+'pin_2_mode': True,   # Pin 2: output
+'pin_3_mode': False,  # Pin 3: input
+'pin_4_mode': False   # Pin 4: input
+```
+
+### Parameter Overrides
+
+Override parameters at launch:
+
+```bash
+# Change I2C device and polling rate
+ros2 launch dexi_cpp tca9555_controller.launch.py i2c_device:=/dev/i2c-0 input_polling_rate:=5.0
+
+# Change servo parameters
+ros2 launch dexi_cpp servo_controller.launch.py i2c_address:=64
+```
+
+## Troubleshooting
+
+### Permission Issues
+```bash
+# Add user to i2c group (required for I2C devices)
+sudo usermod -a -G i2c $USER
+
+# Log out and back in for group changes to take effect
+```
+
+### I2C Issues
+```bash
+# Check I2C devices
+i2cdetect -y 1
+
+# Check I2C permissions
+ls -la /dev/i2c-*
+
+# Test I2C communication
+i2cget -y 1 0x20 0x00  # Read TCA9555 input port 0
+```
+
+### Build Issues
+```bash
+# Clean and rebuild
 rm -rf build/dexi_cpp install/dexi_cpp log/latest_build/dexi_cpp
-```
-
-2. Rebuild just dexi_cpp:
-```bash
-# As the user who will run the node
 colcon build --packages-select dexi_cpp --symlink-install
 source install/setup.bash
 ```
 
-3. Verify the installation:
+## Examples
+
+### Pin Control Example
+
+A Python example demonstrating how to read TCA9555 input pins and control output pins:
+
 ```bash
-# Check if the node is installed correctly
-ros2 pkg list | grep dexi_cpp
-ros2 pkg prefix dexi_cpp
+# Make executable
+chmod +x examples/example_pin_control.py
+
+# Run the example (requires TCA9555 controller to be running)
+python3 examples/example_pin_control.py
 ```
 
-4. Run the node:
-```bash
-ros2 launch dexi_cpp servo_controller.launch.py
-```
+This example subscribes to pin 4 input and mirrors its state to pin 0 output.
 
-Note: If you're still seeing old code being executed, try:
-- Checking the installation path: `ros2 pkg prefix dexi_cpp`
-- Verifying the binary location: `which servo_controller`
-- Ensuring you've sourced the correct setup file: `source install/setup.bash`
+## Dependencies
 
-### Troubleshooting
+- **ROS2 Humble** or later
+- **rclcpp** - ROS2 C++ client library
+- **std_msgs** - Standard ROS2 message types
+- **px4_msgs** - PX4 message types
+- **dexi_interfaces** - Custom service and message definitions
 
-If you encounter permission issues, you may need to add your user to the `gpio` group:
-```bash
-sudo usermod -a -G gpio $USER
-```
+## License
 
-After adding to the group, you'll need to log out and log back in for the changes to take effect.
-
-### Notes
-
-- For Raspberry Pi 5 users: This node is currently being updated to use libgpiod for better compatibility
-- All pins are initialized as outputs by default
-- The node will validate pin numbers and return an error if an unsupported pin is requested
-- I2C access requires root privileges by default. Make sure to follow the I2C setup instructions to grant access to non-root users
+MIT License - see LICENSE file for details.

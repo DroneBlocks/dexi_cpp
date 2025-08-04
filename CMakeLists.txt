@@ -42,7 +42,7 @@ ament_target_dependencies(
   "rclcpp"
   "dexi_interfaces"
 )
-target_link_libraries(servo_controller ${LGPIO_LIBRARY} stdc++fs)
+target_link_libraries(servo_controller stdc++fs)
 
 # RGB Status LED Controller
 add_executable(rgb_status_led_controller src/rgb_status_led_controller.cpp)
@@ -55,7 +55,7 @@ ament_target_dependencies(
   "rclcpp"
   "dexi_interfaces"
 )
-target_link_libraries(rgb_status_led_controller ${LGPIO_LIBRARY} stdc++fs)
+target_link_libraries(rgb_status_led_controller stdc++fs)
 
 # TCA9555 Controller
 add_executable(tca9555_controller src/tca9555_controller.cpp)
