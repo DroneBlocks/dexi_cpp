@@ -12,11 +12,7 @@ find_package(px4_msgs REQUIRED)
 find_package(dexi_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# Find lgpio
-find_library(LGPIO_LIBRARY NAMES lgpio)
-if(NOT LGPIO_LIBRARY)
-    message(FATAL_ERROR "lgpio library not found")
-endif()
+
 
 include_directories(include)
 
@@ -33,31 +29,7 @@ ament_target_dependencies(
   "dexi_interfaces"
 )
 
-# GPIO Reader
-add_executable(gpio_reader src/gpio_reader.cpp)
-target_include_directories(gpio_reader PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_compile_features(gpio_reader PUBLIC c_std_99 cxx_std_17)
-ament_target_dependencies(
-  gpio_reader
-  "rclcpp"
-  "std_msgs"
-)
-target_link_libraries(gpio_reader ${LGPIO_LIBRARY})
 
-# GPIO Writer Service
-add_executable(gpio_writer_service src/gpio_writer_service.cpp)
-target_include_directories(gpio_writer_service PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_compile_features(gpio_writer_service PUBLIC c_std_99 cxx_std_17)
-ament_target_dependencies(
-  gpio_writer_service
-  "rclcpp"
-  "dexi_interfaces"
-)
-target_link_libraries(gpio_writer_service ${LGPIO_LIBRARY} stdc++fs)
 
 # Servo Controller
 add_executable(servo_controller src/servo_controller.cpp)
@@ -98,7 +70,7 @@ ament_target_dependencies(
   "std_msgs"
 )
 
-install(TARGETS px4_offboard_manager gpio_reader gpio_writer_service servo_controller rgb_status_led_controller tca9555_controller
+install(TARGETS px4_offboard_manager servo_controller rgb_status_led_controller tca9555_controller
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
