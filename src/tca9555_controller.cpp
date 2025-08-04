@@ -261,17 +261,15 @@ void TCA9555Controller::publishPinStates()
         if (!is_output) {  // Only read input pins
             bool value;
             if (readPin(pin, value)) {
-                // Check if state changed
-                if (pin_states_.find(pin) == pin_states_.end() || pin_states_[pin] != value) {
-                    pin_states_[pin] = value;
-                    
-                    // Publish state change
-                    auto msg = std_msgs::msg::Bool();
-                    msg.data = value;
-                    pin_state_publishers_[pin]->publish(msg);
-                    
-                    RCLCPP_DEBUG(get_logger(), "Pin %d state: %s", pin, value ? "HIGH" : "LOW");
-                }
+                // Update stored state
+                pin_states_[pin] = value;
+                
+                // Always publish current state
+                auto msg = std_msgs::msg::Bool();
+                msg.data = value;
+                pin_state_publishers_[pin]->publish(msg);
+                
+                RCLCPP_DEBUG(get_logger(), "Pin %d state: %s", pin, value ? "HIGH" : "LOW");
             }
         }
     }
