@@ -31,18 +31,6 @@ ament_target_dependencies(
 
 
 
-# Servo Controller
-add_executable(servo_controller src/servo_controller.cpp)
-target_include_directories(servo_controller PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_compile_features(servo_controller PUBLIC c_std_99 cxx_std_17)
-ament_target_dependencies(
-  servo_controller
-  "rclcpp"
-  "dexi_interfaces"
-)
-target_link_libraries(servo_controller stdc++fs)
 
 # RGB Status LED Controller
 add_executable(rgb_status_led_controller src/rgb_status_led_controller.cpp)
@@ -70,7 +58,7 @@ ament_target_dependencies(
   "std_msgs"
 )
 
-install(TARGETS px4_offboard_manager servo_controller rgb_status_led_controller tca9555_controller
+install(TARGETS px4_offboard_manager rgb_status_led_controller tca9555_controller
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
