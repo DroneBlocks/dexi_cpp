@@ -54,27 +54,70 @@ source install/setup.bash
 
 ### Servo Controller
 
-Controls servos via PCA9685 PWM controller.
+Controls servos via PCA9685 PWM controller with robust I2C communication and comprehensive error handling.
 
 **Hardware Setup:**
 - Connect PCA9685 to I2C (SDA: GPIO 2, SCL: GPIO 3)
-- Connect servos to PWM channels 0-3
+- Connect servos to PWM channels 0-15 (all 16 channels supported)
 - Power servos from 5V supply
+- PCA9685 uses I2C address 0x40 by default
+
+**Features:**
+- Supports all 16 PCA9685 channels (0-15)
+- Custom pulse width control per servo
+- Input validation and error handling
+- 50Hz PWM frequency optimized for servos
 
 ```bash
 ros2 launch dexi_cpp servo_controller.launch.py
 ```
 
 **Services:**
-- `/servo_control` (dexi_interfaces/srv/ServoControl) - Control servo position
+- `/dexi/servo_control` (dexi_interfaces/srv/ServoControl) - Control servo position
 
-**Usage:**
+**Service Interface:**
+```
+# Request fields:
+int32 pin      # Servo channel (0-15)
+int32 angle    # Target angle in degrees (0-180)
+int32 min_pw   # Optional: minimum pulse width in microseconds (default: 500)
+int32 max_pw   # Optional: maximum pulse width in microseconds (default: 2500)
+---
+# Response fields:
+bool success   # Operation success status
+string message # Status or error message
+```
+
+**Usage Examples:**
 ```bash
-# Move servo 0 to 90 degrees
-ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 90.0}"
+# Move servo on channel 0 to 90 degrees (using defaults: 500-2500μs pulse width)
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 0, angle: 90"
 
-# Move servo 0 to 0 degrees
-ros2 service call /servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 0.0}"
+# Move servo on channel 1 to 0 degrees
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 1, angle: 0"
+
+# Move servo on channel 2 to 180 degrees
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 2, angle: 180"
+
+# Use custom pulse width range for specific servo (e.g., 600-2400μs)
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 0, angle: 90, min_pw: 600, max_pw: 2400"
+
+# Control servo on channel 5 (demonstrates 16-channel support)
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 5, angle: 45"
+```
+
+**Testing Multiple Servos:**
+```bash
+# Sequential servo control - sweep through channels 0-4
+for i in {0..4}; do
+  ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: $i, angle: 90"
+  sleep 0.5
+done
+
+# Center all servos
+for i in {0..4}; do
+  ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: $i, angle: 90"
+done
 ```
 
 ### TCA9555 Controller
