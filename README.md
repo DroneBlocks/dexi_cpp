@@ -91,32 +91,32 @@ string message # Status or error message
 **Usage Examples:**
 ```bash
 # Move servo on channel 0 to 90 degrees (using defaults: 500-2500μs pulse width)
-ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 0, angle: 90"
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 90}"
 
 # Move servo on channel 1 to 0 degrees
-ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 1, angle: 0"
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: 1, angle: 0}"
 
 # Move servo on channel 2 to 180 degrees
-ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 2, angle: 180"
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: 2, angle: 180}"
 
 # Use custom pulse width range for specific servo (e.g., 600-2400μs)
-ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 0, angle: 90, min_pw: 600, max_pw: 2400"
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: 0, angle: 90, min_pw: 600, max_pw: 2400}"
 
 # Control servo on channel 5 (demonstrates 16-channel support)
-ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: 5, angle: 45"
+ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: 5, angle: 45}"
 ```
 
 **Testing Multiple Servos:**
 ```bash
 # Sequential servo control - sweep through channels 0-4
 for i in {0..4}; do
-  ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: $i, angle: 90"
+  ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: $i, angle: 90}"
   sleep 0.5
 done
 
 # Center all servos
 for i in {0..4}; do
-  ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "pin: $i, angle: 90"
+  ros2 service call /dexi/servo_control dexi_interfaces/srv/ServoControl "{pin: $i, angle: 90}"
 done
 ```
 
