@@ -7,7 +7,6 @@ A collection of C++ ROS2 nodes for the DEXI drone project, providing GPIO contro
 - **Servo Controller**: Controls servos via PCA9685 PWM controller
 - **TCA9555 Controller**: Manages TCA9555 16-bit I2C I/O expander for GPIO control
 - **RGB Status LED Controller**: Controls RGB status indicators
-- **PX4 Offboard Manager**: Manages PX4 offboard control
 
 ## Prerequisites
 
@@ -138,7 +137,7 @@ ros2 launch dexi_cpp tca9555_controller.launch.py
 The launch file configures pins 0-2 and 14-15 as outputs and pins 3-4 as inputs by default.
 
 **Services:**
-- `/tca9555_controller/set_tca9555_pin` (dexi_interfaces/srv/SetGpio) - Set output pin state
+- `/dexi/gpio_writer_service/write_gpio` (dexi_interfaces/srv/GPIOSend) - Set output pin state
 
 **Topics:**
 - `/tca9555_controller/gpio_<pin>_state` (std_msgs/Bool) - Input pin states
@@ -146,10 +145,10 @@ The launch file configures pins 0-2 and 14-15 as outputs and pins 3-4 as inputs 
 **Usage:**
 ```bash
 # Set output pin 0 high
-ros2 service call /tca9555_controller/set_tca9555_pin dexi_interfaces/srv/SetGpio "{pin: 0, value: true}"
+ros2 service call /dexi/gpio_writer_service/write_gpio dexi_interfaces/srv/GPIOSend "{pin: 0, state: true}"
 
 # Set output pin 0 low
-ros2 service call /tca9555_controller/set_tca9555_pin dexi_interfaces/srv/SetGpio "{pin: 0, value: false}"
+ros2 service call /dexi/gpio_writer_service/write_gpio dexi_interfaces/srv/GPIOSend "{pin: 0, state: false}"
 
 # Monitor input pin 3
 ros2 topic echo /tca9555_controller/gpio_3_state
@@ -161,14 +160,6 @@ Controls RGB status indicators.
 
 ```bash
 ros2 launch dexi_cpp rgb_status_led_controller.launch.py
-```
-
-### PX4 Offboard Manager
-
-Manages PX4 offboard control.
-
-```bash
-ros2 launch dexi_cpp px4_offboard_manager.launch.py
 ```
 
 ## Configuration
@@ -262,7 +253,6 @@ python3 examples/example_toggle_pin.py
 - **ROS2 Humble** or later
 - **rclcpp** - ROS2 C++ client library
 - **std_msgs** - Standard ROS2 message types
-- **px4_msgs** - PX4 message types
 - **dexi_interfaces** - Custom service and message definitions
 
 ## License
