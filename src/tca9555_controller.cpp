@@ -57,9 +57,9 @@ TCA9555Controller::TCA9555Controller()
         return;
     }
 
-    // Create service for setting pin values
-    write_service_ = create_service<dexi_interfaces::srv::SetGpio>(
-        "~/set_tca9555_pin",
+    // Create service for setting pin values (compatible with gpio_writer_service format)
+    write_service_ = create_service<dexi_interfaces::srv::GPIOSend>(
+        "/dexi/gpio_writer_service/write_gpio",
         std::bind(&TCA9555Controller::handleWriteRequest, this, _1, _2)
     );
 
@@ -300,8 +300,8 @@ void TCA9555Controller::publishPinStates()
 }
 
 void TCA9555Controller::handleWriteRequest(
-    const std::shared_ptr<dexi_interfaces::srv::SetGpio::Request> request,
-    std::shared_ptr<dexi_interfaces::srv::SetGpio::Response> response)
+    const std::shared_ptr<dexi_interfaces::srv::GPIOSend::Request> request,
+    std::shared_ptr<dexi_interfaces::srv::GPIOSend::Response> response)
 {
     try {
         // Check if pin is valid (0-4, 14-15)
@@ -311,8 +311,8 @@ void TCA9555Controller::handleWriteRequest(
             return;
         }
 
-        // Write pin value
-        if (!writePin(request->pin, request->value)) {
+        // Write pin value (GPIOSend uses 'state' instead of 'value')
+        if (!writePin(request->pin, request->state)) {
             response->success = false;
             response->message = "Failed to write TCA9555 pin value";
             return;
@@ -320,7 +320,7 @@ void TCA9555Controller::handleWriteRequest(
 
         response->success = true;
         response->message = "Successfully wrote TCA9555 pin value";
-        RCLCPP_INFO(get_logger(), "Set TCA9555 pin %d to %s", request->pin, request->value ? "HIGH" : "LOW");
+        RCLCPP_INFO(get_logger(), "Set TCA9555 pin %d to %s", request->pin, request->state ? "HIGH" : "LOW");
     } catch (const std::exception& e) {
         response->success = false;
         response->message = std::string("Error: ") + e.what();

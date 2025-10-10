@@ -8,28 +8,12 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(px4_msgs REQUIRED)
 find_package(dexi_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 
 
 
 include_directories(include)
-
-# PX4 Offboard Manager
-add_executable(px4_offboard_manager src/px4_offboard_manager.cpp)
-target_include_directories(px4_offboard_manager PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_compile_features(px4_offboard_manager PUBLIC c_std_99 cxx_std_17)
-ament_target_dependencies(
-  px4_offboard_manager
-  "rclcpp"
-  "px4_msgs"
-  "dexi_interfaces"
-)
-
-
 
 
 # RGB Status LED Controller
@@ -75,7 +59,7 @@ ament_target_dependencies(
 )
 target_link_libraries(servo_controller i2c)
 
-install(TARGETS px4_offboard_manager rgb_status_led_controller tca9555_controller servo_controller
+install(TARGETS rgb_status_led_controller tca9555_controller servo_controller
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY

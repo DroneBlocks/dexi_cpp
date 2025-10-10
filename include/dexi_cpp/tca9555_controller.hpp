@@ -2,7 +2,7 @@
 #define DEXI_CPP_TCA9555_CONTROLLER_HPP
 
 #include <rclcpp/rclcpp.hpp>
-#include "dexi_interfaces/srv/set_gpio.hpp"
+#include "dexi_interfaces/srv/gpio_send.hpp"
 
 #include "std_msgs/msg/bool.hpp"
 #include <vector>
@@ -23,8 +23,8 @@ public:
 
 private:
     void handleWriteRequest(
-        const std::shared_ptr<dexi_interfaces::srv::SetGpio::Request> request,
-        std::shared_ptr<dexi_interfaces::srv::SetGpio::Response> response);
+        const std::shared_ptr<dexi_interfaces::srv::GPIOSend::Request> request,
+        std::shared_ptr<dexi_interfaces::srv::GPIOSend::Response> response);
     
     void inputPollingTimer();
     void publishPinStates();
@@ -55,7 +55,7 @@ private:
     std::map<uint8_t, bool> pin_states_;  // Current state of all pins
     std::map<uint8_t, bool> pin_modes_;   // true = output, false = input
     
-    rclcpp::Service<dexi_interfaces::srv::SetGpio>::SharedPtr write_service_;
+    rclcpp::Service<dexi_interfaces::srv::GPIOSend>::SharedPtr write_service_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pin_state_publishers_[16];
     rclcpp::TimerBase::SharedPtr input_timer_;
     
