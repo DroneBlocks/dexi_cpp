@@ -29,6 +29,19 @@ DEXI's expansion hardware is built around two I²C peripherals on the companion 
        servos / LEDs                    digital inputs/outputs
 ```
 
+### Raspberry Pi I²C-1 pinout
+
+`/dev/i2c-1` is the standard user I²C bus (the one enabled by `raspi-config → Interface Options → I2C` and scanned by `i2cdetect -y 1`). It is wired to the 40-pin header as follows:
+
+| Signal | BCM GPIO | Physical pin |
+|--------|----------|--------------|
+| SDA    | GPIO 2   | Pin 3        |
+| SCL    | GPIO 3   | Pin 5        |
+| GND    | —        | Pin 6 (or any GND) |
+| 3.3 V  | —        | Pin 1        |
+
+Both the PCA9685 (`0x40`) and TCA9555 (`0x20`) share these two wires; they are distinguished only by their I²C addresses.
+
 ### PCA9685 — analog-style PWM outputs
 
 - **Chip**: NXP PCA9685, 16-channel 12-bit PWM driver.
