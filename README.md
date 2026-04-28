@@ -8,6 +8,72 @@ A collection of C++ ROS2 nodes for the DEXI drone project, providing GPIO contro
 - **TCA9555 Controller**: Manages TCA9555 16-bit I2C I/O expander for GPIO control
 - **RGB Status LED Controller**: Controls RGB status indicators
 
+## Architecture
+
+DEXI's expansion hardware is built around two I²C peripherals on the companion computer's I²C-1 bus. They serve different roles and are addressed independently, so they coexist on the same two wires (SDA/SCL).
+
+```
+                   Raspberry Pi (companion computer)
+                              │
+                       I²C-1 bus (/dev/i2c-1)
+                              │
+            ┌─────────────────┴─────────────────┐
+            │                                   │
+        ┌───▼────────┐                    ┌─────▼──────┐
+        │  PCA9685   │                    │  TCA9555   │
+        │  0x40      │                    │  0x20      │
+        │  16-ch PWM │                    │  16-bit IO │
+        └───┬────────┘                    └─────┬──────┘
+            │ PWM 0..15                         │ GPIO 0–4, 14–15
+            ▼                                   ▼
+       servos / LEDs                    digital inputs/outputs
+```
+
+### Raspberry Pi I²C-1 pinout
+
+`/dev/i2c-1` is the standard user I²C bus (the one enabled by `raspi-config → Interface Options → I2C` and scanned by `i2cdetect -y 1`). It is wired to the 40-pin header as follows:
+
+| Signal | BCM GPIO | Physical pin |
+|--------|----------|--------------|
+| SDA    | GPIO 2   | Pin 3        |
+| SCL    | GPIO 3   | Pin 5        |
+| GND    | —        | Pin 6 (or any GND) |
+| 3.3 V  | —        | Pin 1        |
+
+Both the PCA9685 (`0x40`) and TCA9555 (`0x20`) share these two wires; they are distinguished only by their I²C addresses.
+
+### PCA9685 — analog-style PWM outputs
+
+- **Chip**: NXP PCA9685, 16-channel 12-bit PWM driver.
+- **Bus / address**: `/dev/i2c-1`, `0x40`.
+- **Frequency**: configured to 50 Hz (20 ms period) for hobby servos.
+- **Channels**: 16 independent PWM outputs (0–15).
+- **Node**: `servo_controller` — `src/servo_controller.cpp`, header `include/dexi_cpp/servo_controller.hpp`.
+- **Interface**: service `/dexi/servo_control` (`dexi_interfaces/srv/ServoControl`). Request takes a channel `pin` (0–15), an `angle` (0–180°), and optional `min_pw` / `max_pw` pulse widths in microseconds. The node converts angle → pulse width → duty cycle and writes it to the channel.
+- **Typical use**: driving servos. The same channels can also dim LEDs or any device that wants a duty-cycled signal.
+
+### TCA9555 — digital GPIO expander
+
+- **Chip**: TI TCA9555, 16-bit I²C I/O expander.
+- **Bus / address**: `/dev/i2c-1`, `0x20` (A0/A1/A2 tied to GND).
+- **Pins exposed by the node**: 0–4 and 14–15 (seven total). Each pin is individually configured as input or output via launch parameters.
+- **Node**: `tca9555_controller` — `src/tca9555_controller.cpp`, header `include/dexi_cpp/tca9555_controller.hpp`.
+- **Interface**:
+  - Service `/dexi/gpio_writer_service/write_gpio` (`dexi_interfaces/srv/GPIOSend`) — set an output pin HIGH/LOW.
+  - Topics `~/gpio_<pin>_state` (`std_msgs/Bool`) — input pins are polled (default 10 Hz) and their state published.
+- **Typical use**: relays, status logic levels, switches, buttons — anything that's digital on/off rather than PWM.
+
+### Choosing between them
+
+| Need to drive…                          | Use            |
+|-----------------------------------------|----------------|
+| Servo (RC-style 1–2 ms pulse, 50 Hz)    | PCA9685        |
+| LED brightness / motor speed (PWM)      | PCA9685        |
+| Relay, MOSFET gate, digital signal      | TCA9555 output |
+| Read a button, switch, or logic input   | TCA9555 input  |
+
+Both nodes can run simultaneously — they live on the same I²C bus but at different addresses, so there's no contention beyond standard I²C arbitration.
+
 ## Prerequisites
 
 ### System Dependencies
