@@ -86,9 +86,15 @@ public:
 
     // PX4's uXRCE-DDS topics are best-effort; a reliable subscription gets nothing.
     const auto qos = rclcpp::SensorDataQoS();
+    // Position comes from the offboard manager's 20 Hz copy, which costs a fifth of
+    // the raw 100 Hz topic. If that copy goes quiet (offboard disabled), switch to
+    // the raw topic until it returns.
     pos_sub_ = create_subscription<VehicleLocalPosition>(
-      "/fmu/out/vehicle_local_position", qos,
-      [this](VehicleLocalPosition::ConstSharedPtr m) {pos_ = m; pos_time_ = now();});
+      "/fmu/out/vehicle_local_position_20hz", qos,
+      [this](VehicleLocalPosition::ConstSharedPtr m) {
+        pos_ = m; pos_time_ = now(); pos_20hz_time_ = pos_time_;
+      });
+    fallback_timer_ = create_wall_timer(std::chrono::seconds(2), [this]() {check_position_source();});
     // PX4 1.16 publishes vehicle_status_v1; earlier releases used vehicle_status.
     auto on_status = [this](VehicleStatus::ConstSharedPtr m) {status_ = m; status_time_ = now();};
     status_sub_ = create_subscription<VehicleStatus>("/fmu/out/vehicle_status_v1", qos, on_status);
@@ -113,6 +119,20 @@ public:
   }
 
 private:
+  void check_position_source()
+  {
+    const bool copy_alive = fresh(pos_20hz_time_, 2.0);
+    if (!copy_alive && !raw_pos_sub_) {
+      raw_pos_sub_ = create_subscription<VehicleLocalPosition>(
+        "/fmu/out/vehicle_local_position", rclcpp::SensorDataQoS(),
+        [this](VehicleLocalPosition::ConstSharedPtr m) {pos_ = m; pos_time_ = now();});
+      RCLCPP_INFO(get_logger(), "20 Hz position copy quiet; reading /fmu/out/vehicle_local_position");
+    } else if (copy_alive && raw_pos_sub_) {
+      raw_pos_sub_.reset();
+      RCLCPP_INFO(get_logger(), "20 Hz position copy back; dropped the raw subscription");
+    }
+  }
+
   // estimator_status_flags arrives at ~1.4 Hz, so allow a few seconds.
   bool fresh(const rclcpp::Time & t, double max_age = 3.0) const
   {
@@ -199,6 +219,8 @@ private:
   }
 
   rclcpp::Subscription<VehicleLocalPosition>::SharedPtr pos_sub_;
+  rclcpp::Subscription<VehicleLocalPosition>::SharedPtr raw_pos_sub_;
+  rclcpp::TimerBase::SharedPtr fallback_timer_;
   rclcpp::Subscription<VehicleStatus>::SharedPtr status_sub_;
   rclcpp::Subscription<VehicleStatus>::SharedPtr status_legacy_sub_;
   rclcpp::Subscription<BatteryStatus>::SharedPtr battery_sub_;
@@ -215,6 +237,7 @@ private:
   VehicleLandDetected::ConstSharedPtr land_;
   FailsafeFlags::ConstSharedPtr failsafe_;
   rclcpp::Time pos_time_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time pos_20hz_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time status_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time battery_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time est_time_{0, 0, RCL_ROS_TIME};
