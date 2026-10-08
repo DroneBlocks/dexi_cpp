@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(dexi_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(px4_msgs REQUIRED)
 
 
 
@@ -59,7 +60,17 @@ ament_target_dependencies(
 )
 target_link_libraries(servo_controller i2c)
 
-install(TARGETS rgb_status_led_controller tca9555_controller servo_controller
+# Low-rate telemetry summary for rosbridge clients
+add_executable(telemetry_node src/telemetry_node.cpp)
+target_compile_features(telemetry_node PUBLIC cxx_std_17)
+ament_target_dependencies(
+  telemetry_node
+  "rclcpp"
+  "std_msgs"
+  "px4_msgs"
+)
+
+install(TARGETS rgb_status_led_controller tca9555_controller servo_controller telemetry_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
