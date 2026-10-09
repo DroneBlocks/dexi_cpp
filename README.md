@@ -294,10 +294,10 @@ A Python example demonstrating how to read TCA9555 input pins and control output
 
 ```bash
 # Make executable
-chmod +x examples/example_pin_control.py
+chmod +x examples/python/example_pin_control.py
 
 # Run the example (requires TCA9555 controller to be running)
-python3 examples/example_pin_control.py
+python3 examples/python/example_pin_control.py
 ```
 
 This example subscribes to pin 4 input and mirrors its state to pin 0 output.
@@ -308,10 +308,10 @@ A simple example that toggles TCA9555 pin 14 on and off at 1-second intervals:
 
 ```bash
 # Make executable
-chmod +x examples/example_toggle_pin.py
+chmod +x examples/python/example_toggle_pin.py
 
 # Run the example (requires TCA9555 controller to be running)
-python3 examples/example_toggle_pin.py
+python3 examples/python/example_toggle_pin.py
 ```
 
 ## Dependencies
