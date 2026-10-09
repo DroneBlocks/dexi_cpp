@@ -153,7 +153,9 @@ private:
 
   void publish()
   {
-    std::string j = "{";
+    // "v" is the message format version. Fields are only ever added; a change that
+    // renames or removes one bumps it.
+    std::string j = "{\"v\":1,";
 
     if (pos_ && fresh(pos_time_)) {
       const auto & p = *pos_;
