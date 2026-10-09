@@ -92,7 +92,10 @@ public:
     pos_sub_ = create_subscription<VehicleLocalPosition>(
       "/fmu/out/vehicle_local_position_20hz", qos,
       [this](VehicleLocalPosition::ConstSharedPtr m) {
-        pos_ = m; pos_time_ = now(); pos_20hz_time_ = pos_time_;
+        // The copy keeps repeating its last sample when PX4 goes away, so a sample only
+        // counts as fresh when PX4's own timestamp has moved.
+        pos_20hz_time_ = now();
+        on_position(m);
       });
     fallback_timer_ = create_wall_timer(std::chrono::seconds(2), [this]() {check_position_source();});
     // PX4 1.16 publishes vehicle_status_v1; earlier releases used vehicle_status.
@@ -119,13 +122,22 @@ public:
   }
 
 private:
+  void on_position(VehicleLocalPosition::ConstSharedPtr m)
+  {
+    if (m->timestamp != last_px4_timestamp_) {
+      last_px4_timestamp_ = m->timestamp;
+      pos_time_ = now();
+    }
+    pos_ = m;
+  }
+
   void check_position_source()
   {
     const bool copy_alive = fresh(pos_20hz_time_, 2.0);
     if (!copy_alive && !raw_pos_sub_) {
       raw_pos_sub_ = create_subscription<VehicleLocalPosition>(
         "/fmu/out/vehicle_local_position", rclcpp::SensorDataQoS(),
-        [this](VehicleLocalPosition::ConstSharedPtr m) {pos_ = m; pos_time_ = now();});
+        [this](VehicleLocalPosition::ConstSharedPtr m) {on_position(m);});
       RCLCPP_INFO(get_logger(), "20 Hz position copy quiet; reading /fmu/out/vehicle_local_position");
     } else if (copy_alive && raw_pos_sub_) {
       raw_pos_sub_.reset();
@@ -238,6 +250,7 @@ private:
   FailsafeFlags::ConstSharedPtr failsafe_;
   rclcpp::Time pos_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time pos_20hz_time_{0, 0, RCL_ROS_TIME};
+  uint64_t last_px4_timestamp_{0};
   rclcpp::Time status_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time battery_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time est_time_{0, 0, RCL_ROS_TIME};
